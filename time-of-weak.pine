@@ -1,0 +1,207 @@
+
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © peacepeacecreation
+
+//@version=5
+indicator("Time of week", overlay=true, max_labels_count=500, max_lines_count = 500)
+
+//days_in_month = 31 - (((month - 1) % 7) % 2)
+//if month == 2
+//    if  ((year % 4) == 0)
+//        days_in_month := 29
+//    else
+//        days_in_month := 28
+
+
+current_day = switch dayofweek
+    2 => "пн"
+    3 => "вт"
+    4 => "ср"
+    5 => "чт"
+    6 => "пт"
+    7 => "сб"
+    => "вс"
+
+
+current_color = switch dayofweek
+    2 => color.green
+    6 => color.red
+    => color.blue
+
+W_High = request.security(syminfo.tickerid, 'W', high[0], lookahead = barmerge.lookahead_on)
+W_Low = request.security(syminfo.tickerid, 'W', low[0], lookahead = barmerge.lookahead_on)
+D_Low = request.security(syminfo.tickerid, 'D', low[0], lookahead = barmerge.lookahead_on)
+D_High = request.security(syminfo.tickerid, 'D', high[0], lookahead = barmerge.lookahead_on)
+
+myColor = W_Low == D_Low ? color.new(dayofweek == 2 ? color.red : color.white, 20) : color.new(color.orange, 50 + ((dayofweek == 1 ? 8 : dayofweek) * 4))
+
+//bgcolor(time("", "0000-0200", "GMT-4") ? myColor : na)
+
+number_day = 2
+monday_low = low[(number_day > dayofweek ? dayofweek + 7 : dayofweek) - number_day]
+monday_high = high[(number_day > dayofweek ? dayofweek + 7 : dayofweek) - number_day]
+
+if (dayofweek == number_day)
+    //label.new(bar_index + 7, low + 10, "Monday low", color = color.red, style = label.style_none)
+    line.new(bar_index, low, bar_index + 7, low, width = 1, color = monday_low == W_Low ? color.black : color.red)
+    line.new(bar_index, high, bar_index + 7, high, width = 1, color = monday_high == W_High ? color.black : color.red)
+
+
+if (dayofweek != 2 and monday_low != W_Low and D_Low == W_Low)
+    label.new(bar_index, W_Low - 250, current_day, color = color.red, style = label.style_none)
+
+
+if (dayofweek != 2 and monday_high != W_High and D_High == W_High)
+    label.new(bar_index, W_High + 250, current_day, color = color.red, style = label.style_none)
+
+if (dayofweek == 2 and time("", "1300-1301", "GMT"))
+    labelMonday = label.new(bar_index, 0, "MONDAY", style = label.style_none)
+    label.set_size(labelMonday, size.large)
+    label.set_textcolor(labelMonday, color.rgb(255, 255, 255))
+
+
+
+var Mon = 0
+var Tue = 0
+var Wed = 0
+var Thu = 0
+var Fri = 0
+var Sat = 0
+var Sun = 0
+var countDay = 0
+
+var T0 = ''
+var T1 = ''
+var T2 = ''
+var T3 = ''
+var T4 = ''
+var T5 = ''
+var T6 = ''
+var T7 = ''
+var T8 = ''
+var T9 = ''
+var T10 = ''
+var T11 = ''
+var T12 = ''
+var T13 = ''
+var T14 = ''
+var T15 = ''
+var T16 = ''
+var T17 = ''
+var T18 = ''
+var T19 = ''
+var T20 = ''
+var T21 = ''
+var T22 = ''
+var T23 = ''
+
+countDay := countDay + 1
+
+data = ", " + current_day + ' (' + str.format("{0,date,dd.M.Y}", time) + ')\n'
+
+if (dayofweek == 2 and W_Low == D_Low and low == D_Low)
+    if (str.format("{0,time,H}", time) == '0')
+        T0 := T0 + data
+    if (str.format("{0,time,H}", time) == '1')
+        T1 := T1 + data
+    if (str.format("{0,time,H}", time) == '2')
+        T2 := T2 + data
+    if (str.format("{0,time,H}", time) == '3')
+        T3 := T3 + data
+    if (str.format("{0,time,H}", time) == '4')
+        T4 := T4 + data
+    if (str.format("{0,time,H}", time) == '5')
+        T5 := T5 + data
+    if (str.format("{0,time,H}", time) == '7')
+        T7 := T7 + data
+    if (str.format("{0,time,H}", time) == '8')
+        T8 := T8 + data
+    if (str.format("{0,time,H}", time) == '9')
+        T9 := T9 + data
+    if (str.format("{0,time,H}", time) == '10')
+        T10 := T10 + data
+    if (str.format("{0,time,H}", time) == '11')
+        T11 := T11 + data
+    if (str.format("{0,time,H}", time) == '12')
+        T12 := T12 + data
+    if (str.format("{0,time,H}", time) == '13')
+        T13 := T13 + data
+    if (str.format("{0,time,H}", time) == '14')
+        T14 := T14 + data
+    if (str.format("{0,time,H}", time) == '15')
+        T15 := T15 + data
+    if (str.format("{0,time,H}", time) == '16')
+        T16 := T16 + data
+    if (str.format("{0,time,H}", time) == '17')
+        T17 := T17 + data
+    if (str.format("{0,time,H}", time) == '18')
+        T18 := T18 + data
+    if (str.format("{0,time,H}", time) == '19')
+        T19 := T19 + data
+    if (str.format("{0,time,H}", time) == '20')
+        T20 := T20 + data
+    if (str.format("{0,time,H}", time) == '21')
+        T21 := T21 + data
+    if (str.format("{0,time,H}", time) == '22')
+        T22 := T22 + data
+    if (str.format("{0,time,H}", time) == '23')
+        T23 := T23 + data
+
+if (dayofweek == 2 and W_Low == D_Low)
+    Mon := Mon + 1
+    //label.new(bar_index, low + 20, str.tostring(time("D")), style = label.style_label_up)
+
+
+if (dayofweek == 3 and W_Low == D_Low)
+    Tue := Tue + 1
+if (dayofweek == 4 and W_Low == D_Low)
+    Wed := Wed + 1
+if (dayofweek == 5 and W_Low == D_Low)
+    Thu := Thu + 1
+if (dayofweek == 6 and W_Low == D_Low)
+    Fri := Fri + 1
+if (dayofweek == 7 and W_Low == D_Low)
+    Sat := Sat + 1
+if (dayofweek == 1 and W_Low == D_Low)
+    Sun := Sun + 1
+
+if (year(timenow) == year(time) and month(timenow) == month(time) and dayofmonth(timenow) == dayofmonth(time) and hour(timenow) == hour(time))
+    label.new(bar_index + 250, high, '00 - ' + str.tostring(T0) + '\n01 - ' + str.tostring(T1) +'\n02 - ' + str.tostring(T2) +'\n03 - ' + str.tostring(T3) +'\n04 - ' + str.tostring(T4) +'\n05 - ' + str.tostring(T5) +'\n06 - ' + str.tostring(T6) +'\n07 - ' + str.tostring(T7) +'\n08 - ' + str.tostring(T8) +'\n09 - ' + str.tostring(T9) +'\n10 - ' + str.tostring(T10) +'\n11 - ' + str.tostring(T11) +'\n12 - ' + str.tostring(T12) +'\n13 - ' + str.tostring(T13) +'\n14 - ' + str.tostring(T14) +'\n15 - ' + str.tostring(T15) +'\n16 - ' + str.tostring(T16) +'\n17 - ' + str.tostring(T17) +'\n18 - ' + str.tostring(T18) +'\n19 - ' + str.tostring(T19) +'\n20 - ' + str.tostring(T20) +'\n21 - ' + str.tostring(T21) +'\n22 - ' + str.tostring(T22) +'\n23 - ' + str.tostring(T23), color=color.white)
+    label.new(bar_index + 20, high, 'Дней - ' + str.tostring(countDay/7) + '\nПн - ' + str.tostring(Mon) + '\n  Вт - ' + str.tostring(Tue) + '\n  Ср - ' + str.tostring(Wed) + '\n  Чт - ' + str.tostring(Thu) + '\n  Пт - ' + str.tostring(Fri) + '\n  Сб - ' + str.tostring(Sat) + '\n  Вс - ' + str.tostring(Sun), color=color.white)
+
+
+var HMon = 0
+var HTue = 0
+var HWed = 0
+var HThu = 0
+var HFri = 0
+var HSat = 0
+var HSun = 0
+var countHDay = 0
+
+countHDay := countHDay + 1
+if (dayofweek == 2 and W_High == D_High)
+    HMon := HMon + 1
+if (dayofweek == 3 and W_High == D_High)
+    HTue := HTue + 1
+if (dayofweek == 4 and W_High == D_High)
+    HWed := HWed + 1
+if (dayofweek == 5 and W_High == D_High)
+    HThu := HThu + 1
+if (dayofweek == 6 and W_High == D_High)
+    HFri := HFri + 1
+if (dayofweek == 7 and W_High == D_High)
+    HSat := HSat + 1
+if (dayofweek == 1 and W_High == D_High)
+    HSun := HSun + 1
+
+if (year(timenow) == year(time) and month(timenow) == month(time) and dayofmonth(timenow) == dayofmonth(time) and hour(timenow) == hour(time))
+    label.new(bar_index + 20, low, 'Дней - ' + str.tostring(countHDay/7) + '\nПн - ' + str.tostring(HMon) + '\n  Вт - ' + str.tostring(HTue) + '\n  Ср - ' + str.tostring(HWed) + '\n  Чт - ' + str.tostring(HThu) + '\n  Пт - ' + str.tostring(HFri) + '\n  Сб - ' + str.tostring(HSat) + '\n Вс - ' + str.tostring(HSun), color=color.white, style = label.style_label_up)
+
+
+
+//label.new(bar_index, high, str.tostring(number_day > dayofweek ? dayofweek + 7 : dayofweek), color=color.green)
+
+//bgcolor(dayofweek == 2 and time("", "0000-2400", "GMT") ? monday_low == W_Low ? color.rgb(72, 216, 103, 67) : monday_high == W_High ? color.rgb(216, 72, 72, 67) : color.rgb(154, 120, 120, 67) : na)
+bgcolor(monday_low == W_Low ? color.rgb(72, 216, 103, 67) : monday_high == W_High ? color.rgb(216, 72, 72, 67) : na)
+//
