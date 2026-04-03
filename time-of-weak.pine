@@ -99,52 +99,56 @@ countDay := countDay + 1
 
 data = ", " + current_day + ' (' + str.format("{0,date,dd.M.Y}", time) + ')\n'
 
+maxLen = 3800
+
 if (dayofweek == 2 and W_Low == D_Low and low == D_Low)
-    if (str.format("{0,time,H}", time) == '0')
+    if (str.format("{0,time,H}", time) == '0' and str.length(T0) < maxLen)
         T0 := T0 + data
-    if (str.format("{0,time,H}", time) == '1')
+    if (str.format("{0,time,H}", time) == '1' and str.length(T1) < maxLen)
         T1 := T1 + data
-    if (str.format("{0,time,H}", time) == '2')
+    if (str.format("{0,time,H}", time) == '2' and str.length(T2) < maxLen)
         T2 := T2 + data
-    if (str.format("{0,time,H}", time) == '3')
+    if (str.format("{0,time,H}", time) == '3' and str.length(T3) < maxLen)
         T3 := T3 + data
-    if (str.format("{0,time,H}", time) == '4')
+    if (str.format("{0,time,H}", time) == '4' and str.length(T4) < maxLen)
         T4 := T4 + data
-    if (str.format("{0,time,H}", time) == '5')
+    if (str.format("{0,time,H}", time) == '5' and str.length(T5) < maxLen)
         T5 := T5 + data
-    if (str.format("{0,time,H}", time) == '7')
+    if (str.format("{0,time,H}", time) == '6' and str.length(T6) < maxLen)
+        T6 := T6 + data
+    if (str.format("{0,time,H}", time) == '7' and str.length(T7) < maxLen)
         T7 := T7 + data
-    if (str.format("{0,time,H}", time) == '8')
+    if (str.format("{0,time,H}", time) == '8' and str.length(T8) < maxLen)
         T8 := T8 + data
-    if (str.format("{0,time,H}", time) == '9')
+    if (str.format("{0,time,H}", time) == '9' and str.length(T9) < maxLen)
         T9 := T9 + data
-    if (str.format("{0,time,H}", time) == '10')
+    if (str.format("{0,time,H}", time) == '10' and str.length(T10) < maxLen)
         T10 := T10 + data
-    if (str.format("{0,time,H}", time) == '11')
+    if (str.format("{0,time,H}", time) == '11' and str.length(T11) < maxLen)
         T11 := T11 + data
-    if (str.format("{0,time,H}", time) == '12')
+    if (str.format("{0,time,H}", time) == '12' and str.length(T12) < maxLen)
         T12 := T12 + data
-    if (str.format("{0,time,H}", time) == '13')
+    if (str.format("{0,time,H}", time) == '13' and str.length(T13) < maxLen)
         T13 := T13 + data
-    if (str.format("{0,time,H}", time) == '14')
+    if (str.format("{0,time,H}", time) == '14' and str.length(T14) < maxLen)
         T14 := T14 + data
-    if (str.format("{0,time,H}", time) == '15')
+    if (str.format("{0,time,H}", time) == '15' and str.length(T15) < maxLen)
         T15 := T15 + data
-    if (str.format("{0,time,H}", time) == '16')
+    if (str.format("{0,time,H}", time) == '16' and str.length(T16) < maxLen)
         T16 := T16 + data
-    if (str.format("{0,time,H}", time) == '17')
+    if (str.format("{0,time,H}", time) == '17' and str.length(T17) < maxLen)
         T17 := T17 + data
-    if (str.format("{0,time,H}", time) == '18')
+    if (str.format("{0,time,H}", time) == '18' and str.length(T18) < maxLen)
         T18 := T18 + data
-    if (str.format("{0,time,H}", time) == '19')
+    if (str.format("{0,time,H}", time) == '19' and str.length(T19) < maxLen)
         T19 := T19 + data
-    if (str.format("{0,time,H}", time) == '20')
+    if (str.format("{0,time,H}", time) == '20' and str.length(T20) < maxLen)
         T20 := T20 + data
-    if (str.format("{0,time,H}", time) == '21')
+    if (str.format("{0,time,H}", time) == '21' and str.length(T21) < maxLen)
         T21 := T21 + data
-    if (str.format("{0,time,H}", time) == '22')
+    if (str.format("{0,time,H}", time) == '22' and str.length(T22) < maxLen)
         T22 := T22 + data
-    if (str.format("{0,time,H}", time) == '23')
+    if (str.format("{0,time,H}", time) == '23' and str.length(T23) < maxLen)
         T23 := T23 + data
 
 if (dayofweek == 2 and W_Low == D_Low)
