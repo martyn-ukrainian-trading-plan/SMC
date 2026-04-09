@@ -1,12 +1,16 @@
 //@version=6
-indicator("Range STR", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+indicator("Range STR v2.1", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
 
 // --- Inputs ---
 gracePeriod = input.int(20, "Grace period (bars)", minval=5, maxval=200)
 retracePct  = input.float(20.0, "Retracement %", minval=10, maxval=90, step=5) / 100.0
 showRange   = input.bool(true, "Show range box")
 showDebug   = input.bool(false, "Show labels")
+useFractal  = input.bool(false, "Fractal filter", tooltip="Require swing point to be a fractal (N bars left/right with lower high or higher low)")
+fractalBars = input.int(2, "Fractal bars (left/right)", minval=1, maxval=10)
 rangeColor  = input.color(color.new(color.blue, 85), "Range color")
+bullColor   = input.color(color.green, "Bull color")
+bearColor   = input.color(color.red, "Bear color")
 
 // --- Confirmed range ---
 var float confHigh    = na
@@ -20,14 +24,51 @@ var int   swingHighBar = na
 var float swingLow     = na
 var int   swingLowBar  = na
 
-// --- Last zigzag point ---
-var float zigPrice = na
-var int   zigBar   = na
+// --- Active level lines (horizontal from swing point, extended until break) ---
+var line activHighLine = na
+var line activLowLine  = na
 
 // --- State: 0=waiting, 1=hasBOS, 2=hasCallback, 3=hasCHoCH ---
 var int state = 0
 var int dir   = 0
 var box rangeBox = na
+
+// Helper: check fractal high — N bars left and right must have lower high
+isFractalHigh(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if high[barsAgo + i] >= high[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and high[barsAgo - i] >= high[barsAgo]
+            ok := false
+    ok
+
+// Helper: check fractal low — N bars left and right must have higher low
+isFractalLow(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if low[barsAgo + i] <= low[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and low[barsAgo - i] <= low[barsAgo]
+            ok := false
+    ok
+
+// Helper: fractal gate — pass if filter disabled or fractal confirmed
+isValidSwingHigh(int swBar) =>
+    not useFractal or isFractalHigh(bar_index - swBar, fractalBars)
+
+isValidSwingLow(int swBar) =>
+    not useFractal or isFractalLow(bar_index - swBar, fractalBars)
+
+// Helper: draw dot at swing point
+drawDot(int b, float price, bool isHigh, color c) =>
+    label.new(b, price, "",
+         style=label.style_circle,
+         color=c, size=size.auto)
+
+// Helper: draw horizontal level line from swing point to current bar
+startLevel(int fromBar, float price, color c) =>
+    line.new(fromBar, price, bar_index, price, color=c, width=1, style=line.style_dashed)
 
 // ==========================================
 // Phase 1: Grace period
@@ -44,18 +85,27 @@ if bar_index <= gracePeriod
         swingHighBar := confHighBar
         swingLow     := confLow
         swingLowBar  := confLowBar
-        // Start directly in hasCallback — grace period is our first range
         state := 2
         if confHighBar > confLowBar
             dir := 1
-            line.new(confLowBar, confLow, confHighBar, confHigh, color=color.blue, width=2)
-            zigPrice := confHigh
-            zigBar   := confHighBar
+            drawDot(confLowBar, confLow, false, bullColor)
+            drawDot(confHighBar, confHigh, true, bullColor)
+            activHighLine := startLevel(confHighBar, confHigh, bearColor)
+            activLowLine  := startLevel(confLowBar, confLow, bullColor)
         else
             dir := -1
-            line.new(confHighBar, confHigh, confLowBar, confLow, color=color.blue, width=2)
-            zigPrice := confLow
-            zigBar   := confLowBar
+            drawDot(confHighBar, confHigh, true, bearColor)
+            drawDot(confLowBar, confLow, false, bearColor)
+            activHighLine := startLevel(confHighBar, confHigh, bearColor)
+            activLowLine  := startLevel(confLowBar, confLow, bullColor)
+
+// ==========================================
+// Extend active lines to current bar
+// ==========================================
+if not na(activHighLine)
+    line.set_x2(activHighLine, bar_index)
+if not na(activLowLine)
+    line.set_x2(activLowLine, bar_index)
 
 // ==========================================
 // Phase 2: Main logic
@@ -76,10 +126,11 @@ if bar_index > gracePeriod
                 swingHighBar := bar_index
 
         if high > confHigh
-            if not na(zigPrice)
-                line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
-            zigPrice     := swingLow
-            zigBar       := swingLowBar
+            // End high line at break bar
+            if not na(activHighLine)
+                line.set_x2(activHighLine, bar_index)
+            drawDot(swingLowBar, swingLow, false, bullColor)
+            activLowLine := startLevel(swingLowBar, swingLow, bullColor)
             dir          := 1
             state        := 1
             swingHigh    := high
@@ -87,10 +138,10 @@ if bar_index > gracePeriod
             if showDebug
                 label.new(bar_index, high, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
         else if low < confLow
-            if not na(zigPrice)
-                line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
-            zigPrice     := swingHigh
-            zigBar       := swingHighBar
+            if not na(activLowLine)
+                line.set_x2(activLowLine, bar_index)
+            drawDot(swingHighBar, swingHigh, true, bearColor)
+            activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
             dir          := -1
             state        := 1
             swingLow     := low
@@ -111,10 +162,11 @@ if bar_index > gracePeriod
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
                     if low < retraceLevel
-                        if not na(zigPrice)
-                            line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
-                        zigPrice     := swingHigh
-                        zigBar       := swingHighBar
+                        // Retrace detected — always transition state
+                        isFractal = isValidSwingHigh(swingHighBar)
+                        if isFractal
+                            drawDot(swingHighBar, swingHigh, true, bullColor)
+                            activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
                         confHigh     := swingHigh
                         confHighBar  := swingHighBar
                         confLow      := swingLow
@@ -123,7 +175,7 @@ if bar_index > gracePeriod
                         swingLowBar  := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, low, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+                            label.new(bar_index, low, isFractal ? "CB" : "CB~", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
 
         if dir == -1
             if low < swingLow
@@ -134,10 +186,11 @@ if bar_index > gracePeriod
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
                     if high > retraceLevel
-                        if not na(zigPrice)
-                            line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
-                        zigPrice     := swingLow
-                        zigBar       := swingLowBar
+                        // Retrace detected — always transition state
+                        isFractal = isValidSwingLow(swingLowBar)
+                        if isFractal
+                            drawDot(swingLowBar, swingLow, false, bearColor)
+                            activLowLine := startLevel(swingLowBar, swingLow, bullColor)
                         confLow      := swingLow
                         confLowBar   := swingLowBar
                         confHigh     := swingHigh
@@ -146,7 +199,7 @@ if bar_index > gracePeriod
                         swingHighBar := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, high, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+                            label.new(bar_index, high, isFractal ? "CB" : "CB~", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
     // =====================
     // State 2: hasCallback — track HL/LH, BOS or CHoCH
@@ -158,13 +211,13 @@ if bar_index > gracePeriod
                 swingLowBar := bar_index
 
             if high > confHigh
-                // BOS → confirm HL, update confLow NOW
+                // BOS up
+                if not na(activHighLine)
+                    line.set_x2(activHighLine, bar_index)
                 confLow      := swingLow
                 confLowBar   := swingLowBar
-                if not na(zigPrice)
-                    line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
-                zigPrice     := swingLow
-                zigBar       := swingLowBar
+                drawDot(swingLowBar, swingLow, false, bullColor)
+                activLowLine := startLevel(swingLowBar, swingLow, bullColor)
                 state        := 1
                 swingHigh    := high
                 swingHighBar := bar_index
@@ -172,13 +225,13 @@ if bar_index > gracePeriod
                     label.new(bar_index, high, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
 
             else if low < confLow
-                // CHoCH → confirm LH, update confHigh NOW
+                // CHoCH down
+                if not na(activLowLine)
+                    line.set_x2(activLowLine, bar_index)
                 confHigh     := swingHigh
                 confHighBar  := swingHighBar
-                if not na(zigPrice)
-                    line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
-                zigPrice     := swingHigh
-                zigBar       := swingHighBar
+                drawDot(swingHighBar, swingHigh, true, bearColor)
+                activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
                 dir          := -1
                 state        := 3
                 swingLow     := low
@@ -192,13 +245,13 @@ if bar_index > gracePeriod
                 swingHighBar := bar_index
 
             if low < confLow
-                // BOS → confirm LH, update confHigh NOW
+                // BOS down
+                if not na(activLowLine)
+                    line.set_x2(activLowLine, bar_index)
                 confHigh     := swingHigh
                 confHighBar  := swingHighBar
-                if not na(zigPrice)
-                    line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
-                zigPrice     := swingHigh
-                zigBar       := swingHighBar
+                drawDot(swingHighBar, swingHigh, true, bearColor)
+                activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
                 state        := 1
                 swingLow     := low
                 swingLowBar  := bar_index
@@ -206,13 +259,13 @@ if bar_index > gracePeriod
                     label.new(bar_index, low, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
 
             else if high > confHigh
-                // CHoCH → confirm HL, update confLow NOW
+                // CHoCH up
+                if not na(activHighLine)
+                    line.set_x2(activHighLine, bar_index)
                 confLow      := swingLow
                 confLowBar   := swingLowBar
-                if not na(zigPrice)
-                    line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
-                zigPrice     := swingLow
-                zigBar       := swingLowBar
+                drawDot(swingLowBar, swingLow, false, bullColor)
+                activLowLine := startLevel(swingLowBar, swingLow, bullColor)
                 dir          := 1
                 state        := 3
                 swingHigh    := high
@@ -233,10 +286,11 @@ if bar_index > gracePeriod
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
                     if low < retraceLevel
-                        if not na(zigPrice)
-                            line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
-                        zigPrice     := swingHigh
-                        zigBar       := swingHighBar
+                        // Retrace detected — always transition state
+                        isFractal = isValidSwingHigh(swingHighBar)
+                        if isFractal
+                            drawDot(swingHighBar, swingHigh, true, bullColor)
+                            activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
                         confHigh     := swingHigh
                         confHighBar  := swingHighBar
                         confLow      := swingLow
@@ -245,7 +299,7 @@ if bar_index > gracePeriod
                         swingLowBar  := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, low, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+                            label.new(bar_index, low, isFractal ? "CB" : "CB~", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
 
         if dir == -1
             if low < swingLow
@@ -256,10 +310,11 @@ if bar_index > gracePeriod
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
                     if high > retraceLevel
-                        if not na(zigPrice)
-                            line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
-                        zigPrice     := swingLow
-                        zigBar       := swingLowBar
+                        // Retrace detected — always transition state
+                        isFractal = isValidSwingLow(swingLowBar)
+                        if isFractal
+                            drawDot(swingLowBar, swingLow, false, bearColor)
+                            activLowLine := startLevel(swingLowBar, swingLow, bullColor)
                         confLow      := swingLow
                         confLowBar   := swingLowBar
                         confHigh     := swingHigh
@@ -268,7 +323,7 @@ if bar_index > gracePeriod
                         swingHighBar := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, high, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+                            label.new(bar_index, high, isFractal ? "CB" : "CB~", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
 // --- Range box ---
 if showRange and not na(confHigh) and not na(confLow)
