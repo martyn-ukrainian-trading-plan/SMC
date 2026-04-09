@@ -1,23 +1,20 @@
 # SMC Trading Indicators
 
-## Repo
-- **Primary**: https://github.com/martyn-ukrainian-trading-plan/SMC (origin)
-- **Backup**: https://github.com/peacepeacecreation/SMC (peacepeace)
-- Push завжди в `origin` (martyn-ukrainian-trading-plan)
+## Git
+- **Origin**: https://github.com/martyn-ukrainian-trading-plan/SMC
+- **Backup remote**: peacepeace (https://github.com/peacepeacecreation/SMC)
+- Push завжди в `origin`
+- **ОБОВ'ЯЗКОВО**: коміти тільки від автора `martyn-ukrainian-trading-plan <martyn.trading.plan@gmail.com>`. Ніколи не комітити як `peacepeacecreation`. Перед комітом перевірити `git config user.name`.
 
 ## Що тут
 Pine Script індикатори для TradingView — SMC (Smart Money Concepts) торгова система.
 
 ## Структура
-- `strategies/` — основні індикатори свінг-детекції
-  - `swing-range.pine` — **Range STR** — головний індикатор з 3 станами: hasBOS, hasCallback, hasCHoCH
-  - `swing-range2.pine` — робочий бекап Range STR (простіша версія з 2 станами)
-  - `swing-abc.pine` — ABC свінг логіка
-  - `swing-bos.pine` — BOS zigzag
-  - `swing-detection.pine` — базовий pivot zigzag
+- `strategies/swing-range.pine` — **Range STR** — головний індикатор з 3 станами: hasBOS, hasCallback, hasCHoCH
 - `time-of-weak.pine` — аналіз часу тижня
-- `v.v1.pine`, `v-stats.v1.pine` — волатильність
-- `volatility-news.pine`, `volatility-news-stats.pine` — волатильність + новини
+- `volatility-news-stats.pine` — волатильність + новини
+- `strategies/tmp/` — архів старих swing варіантів
+- `tmp/` — архів старих індикаторів волатильності
 
 ## Мова
 Спілкування українською. Код і коментарі — англійською.
