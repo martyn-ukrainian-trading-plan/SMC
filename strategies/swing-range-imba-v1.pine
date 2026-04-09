@@ -1,5 +1,5 @@
 //@version=6
-indicator("Range STR v3.1 IMBA", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+indicator("Range STR v3 IMBA v1", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
 
 // ═══════════════════════════════════════════
 // Inputs: Core
@@ -210,12 +210,10 @@ if bar_index > gracePeriod and isNewBar
                 moveSize = swingHigh - confLow
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
-                    if srcLow < retraceLevel
-                        // Retrace detected — always transition state
-                        isFractal = isValidSwingHigh(swingHighBar)
-                        if isFractal
-                            drawDot(swingHighBar, swingHigh, true, bullColor)
-                            activHighLine := startLevel(swingHighBar, swingHigh, true)
+                    if srcLow < retraceLevel and isValidSwingHigh(swingHighBar)
+                        // HH confirmed
+                        drawDot(swingHighBar, swingHigh, true, bullColor)
+                        activHighLine := startLevel(swingHighBar, swingHigh, true)
                         confHigh     := swingHigh
                         confHighBar  := swingHighBar
                         confLow      := swingLow
@@ -224,7 +222,7 @@ if bar_index > gracePeriod and isNewBar
                         swingLowBar  := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, srcLow, isFractal ? "CB" : "CB~", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+                            label.new(bar_index, srcLow, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
 
         if dir == -1
             if srcLow < swingLow
@@ -234,12 +232,10 @@ if bar_index > gracePeriod and isNewBar
                 moveSize = confHigh - swingLow
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
-                    if srcHigh > retraceLevel
-                        // Retrace detected — always transition state
-                        isFractal = isValidSwingLow(swingLowBar)
-                        if isFractal
-                            drawDot(swingLowBar, swingLow, false, bearColor)
-                            activLowLine := startLevel(swingLowBar, swingLow, false)
+                    if srcHigh > retraceLevel and isValidSwingLow(swingLowBar)
+                        // LL confirmed
+                        drawDot(swingLowBar, swingLow, false, bearColor)
+                        activLowLine := startLevel(swingLowBar, swingLow, false)
                         confLow      := swingLow
                         confLowBar   := swingLowBar
                         confHigh     := swingHigh
@@ -248,7 +244,7 @@ if bar_index > gracePeriod and isNewBar
                         swingHighBar := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, srcHigh, isFractal ? "CB" : "CB~", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+                            label.new(bar_index, srcHigh, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
     // =====================
     // State 2: hasCallback — track HL/LH, BOS or CHoCH
@@ -334,12 +330,9 @@ if bar_index > gracePeriod and isNewBar
                 moveSize = swingHigh - confLow
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
-                    if srcLow < retraceLevel
-                        // Retrace detected — always transition state
-                        isFractal = isValidSwingHigh(swingHighBar)
-                        if isFractal
-                            drawDot(swingHighBar, swingHigh, true, bullColor)
-                            activHighLine := startLevel(swingHighBar, swingHigh, true)
+                    if srcLow < retraceLevel and isValidSwingHigh(swingHighBar)
+                        drawDot(swingHighBar, swingHigh, true, bullColor)
+                        activHighLine := startLevel(swingHighBar, swingHigh, true)
                         confHigh     := swingHigh
                         confHighBar  := swingHighBar
                         confLow      := swingLow
@@ -348,7 +341,7 @@ if bar_index > gracePeriod and isNewBar
                         swingLowBar  := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, srcLow, isFractal ? "CB" : "CB~", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+                            label.new(bar_index, srcLow, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
 
         if dir == -1
             if srcLow < swingLow
@@ -358,12 +351,9 @@ if bar_index > gracePeriod and isNewBar
                 moveSize = confHigh - swingLow
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
-                    if srcHigh > retraceLevel
-                        // Retrace detected — always transition state
-                        isFractal = isValidSwingLow(swingLowBar)
-                        if isFractal
-                            drawDot(swingLowBar, swingLow, false, bearColor)
-                            activLowLine := startLevel(swingLowBar, swingLow, false)
+                    if srcHigh > retraceLevel and isValidSwingLow(swingLowBar)
+                        drawDot(swingLowBar, swingLow, false, bearColor)
+                        activLowLine := startLevel(swingLowBar, swingLow, false)
                         confLow      := swingLow
                         confLowBar   := swingLowBar
                         confHigh     := swingHigh
@@ -372,7 +362,7 @@ if bar_index > gracePeriod and isNewBar
                         swingHighBar := bar_index
                         state        := 2
                         if showDebug
-                            label.new(bar_index, srcHigh, isFractal ? "CB" : "CB~", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+                            label.new(bar_index, srcHigh, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
 
 // ═══════════════════════════════════════════
 // Range box

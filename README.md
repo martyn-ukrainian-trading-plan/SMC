@@ -67,10 +67,10 @@ hasBOS (той же напрямок)  hasCHoCH (зміна напрямку)
 
 ---
 
-### Range STR v3 IMBA — Повна кастомізація
-**Файл:** [`strategies/swing-range-imba.pine`](strategies/swing-range-imba.pine)
+### Range STR v3 IMBA v1 — Повна кастомізація
+**Файл:** [`strategies/swing-range-imba-v1.pine`](strategies/swing-range-imba-v1.pine)
 
-Найповніша версія Range STR з multi-timeframe підтримкою та повною кастомізацією ліній. Та ж 3-станова логіка + фрактальний фільтр з v2.
+Версія Range STR з multi-timeframe підтримкою та повною кастомізацією ліній. Та ж 3-станова логіка + фрактальний фільтр з v2.
 
 **Нові можливості:**
 
@@ -88,6 +88,24 @@ hasBOS (той же напрямок)  hasCHoCH (зміна напрямку)
 - Працює тільки з **вищим** TF (наприклад, графік 1h → свінг з 4h)
 - Сигнали приходять із затримкою — тільки коли HTF бар закриється
 - На живих барах може репейнтити якщо `Wait for HTF bar close = OFF`
+
+---
+
+### Range STR v3 IMBA v2 — Body close фільтр
+**Файл:** [`strategies/swing-range-imba-v2.pine`](strategies/swing-range-imba-v2.pine)
+
+Все з IMBA v1 + фільтр по тілу свічки. BOS/CHoCH рахується лише коли **тіло (close)** пробиває рівень, а не тільки тінь. Тінь за рівнем без закриття = ліквідіті граб, ігнорується.
+
+**Новий фільтр:**
+
+| Параметр | За замовчуванням | Опис |
+|----------|-----------------|------|
+| Body close filter | OFF | BOS/CHoCH тільки при закритті тілом за рівнем |
+
+**Логіка:**
+- `close > confHigh` = справжній BOS up (тіло закрилось вище)
+- `high > confHigh` але `close < confHigh` = ліквідіті граб, злом не зараховується
+- Відкати (retracement) — залишаються на high/low, фільтр не впливає
 
 ---
 

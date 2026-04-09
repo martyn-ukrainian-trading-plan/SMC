@@ -1,5 +1,5 @@
 //@version=6
-indicator("Range STR v3 IMBA", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+indicator("Range STR v3 IMBA v2", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
 
 // ═══════════════════════════════════════════
 // Inputs: Core
@@ -16,10 +16,11 @@ tf          = input.timeframe("", "Timeframe", group="Multi-Timeframe", tooltip=
 waitClose   = input.bool(true, "Wait for HTF bar close", group="Multi-Timeframe", tooltip="On = no repainting (recommended). Off = faster signals but will repaint on live bars.")
 
 // ═══════════════════════════════════════════
-// Inputs: Fractal filter
+// Inputs: Filters
 // ═══════════════════════════════════════════
-useFractal  = input.bool(false, "Fractal filter", group="Fractal", tooltip="Require swing point to be a fractal (N bars left/right with lower high or higher low)")
-fractalBars = input.int(2, "Fractal bars (left/right)", minval=1, maxval=10, group="Fractal")
+useFractal   = input.bool(false, "Fractal filter", group="Filters", tooltip="Require swing point to be a fractal (N bars left/right with lower high or higher low)")
+fractalBars  = input.int(2, "Fractal bars (left/right)", minval=1, maxval=10, group="Filters")
+useBodyClose = input.bool(false, "Body close filter", group="Filters", tooltip="BOS/CHoCH only counts when candle body (close) breaks the level. Wick-only break = liquidity grab, ignored.")
 
 // ═══════════════════════════════════════════
 // Inputs: Lines
@@ -52,12 +53,22 @@ useHTF = tf != ""
 lookahead = waitClose ? barmerge.lookahead_off : barmerge.lookahead_on
 gaps = useHTF ? barmerge.gaps_off : barmerge.gaps_off
 
-srcHigh = useHTF ? request.security(syminfo.tickerid, tf, high, lookahead=lookahead, gaps=gaps) : high
-srcLow  = useHTF ? request.security(syminfo.tickerid, tf, low,  lookahead=lookahead, gaps=gaps) : low
+srcHigh  = useHTF ? request.security(syminfo.tickerid, tf, high,  lookahead=lookahead, gaps=gaps) : high
+srcLow   = useHTF ? request.security(syminfo.tickerid, tf, low,   lookahead=lookahead, gaps=gaps) : low
+srcClose = useHTF ? request.security(syminfo.tickerid, tf, close, lookahead=lookahead, gaps=gaps) : close
 
 // Detect new HTF bar to avoid processing same data multiple times
 htfBarTime  = useHTF ? request.security(syminfo.tickerid, tf, time, lookahead=lookahead, gaps=gaps) : time
 isNewBar    = useHTF ? ta.change(htfBarTime) != 0 : true
+
+// ═══════════════════════════════════════════
+// Body close helpers — break only counts if close is beyond the level
+// ═══════════════════════════════════════════
+breaksAbove(float level) =>
+    useBodyClose ? srcClose > level : srcHigh > level
+
+breaksBelow(float level) =>
+    useBodyClose ? srcClose < level : srcLow < level
 
 // ═══════════════════════════════════════════
 // State variables
@@ -175,7 +186,7 @@ if bar_index > gracePeriod and isNewBar
                 swingHigh    := srcHigh
                 swingHighBar := bar_index
 
-        if srcHigh > confHigh
+        if breaksAbove(confHigh)
             if not na(activHighLine)
                 line.set_x2(activHighLine, bar_index)
             drawDot(swingLowBar, swingLow, false, bullColor)
@@ -186,7 +197,7 @@ if bar_index > gracePeriod and isNewBar
             swingHighBar := bar_index
             if showDebug
                 label.new(bar_index, srcHigh, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
-        else if srcLow < confLow
+        else if breaksBelow(confLow)
             if not na(activLowLine)
                 line.set_x2(activLowLine, bar_index)
             drawDot(swingHighBar, swingHigh, true, bearColor)
@@ -255,7 +266,7 @@ if bar_index > gracePeriod and isNewBar
                 swingLow    := srcLow
                 swingLowBar := bar_index
 
-            if srcHigh > confHigh
+            if breaksAbove(confHigh)
                 // BOS up
                 if not na(activHighLine)
                     line.set_x2(activHighLine, bar_index)
@@ -269,7 +280,7 @@ if bar_index > gracePeriod and isNewBar
                 if showDebug
                     label.new(bar_index, srcHigh, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
 
-            else if srcLow < confLow
+            else if breaksBelow(confLow)
                 // CHoCH down
                 if not na(activLowLine)
                     line.set_x2(activLowLine, bar_index)
@@ -289,7 +300,7 @@ if bar_index > gracePeriod and isNewBar
                 swingHigh    := srcHigh
                 swingHighBar := bar_index
 
-            if srcLow < confLow
+            if breaksBelow(confLow)
                 // BOS down
                 if not na(activLowLine)
                     line.set_x2(activLowLine, bar_index)
@@ -303,7 +314,7 @@ if bar_index > gracePeriod and isNewBar
                 if showDebug
                     label.new(bar_index, srcLow, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
 
-            else if srcHigh > confHigh
+            else if breaksAbove(confHigh)
                 // CHoCH up
                 if not na(activHighLine)
                     line.set_x2(activHighLine, bar_index)
