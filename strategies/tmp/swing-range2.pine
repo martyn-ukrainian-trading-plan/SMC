@@ -1,0 +1,156 @@
+//@version=6
+indicator("Range STR", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// --- Inputs ---
+gracePeriod = input.int(20, "Grace period (bars)", minval=5, maxval=200)
+retracePct  = input.float(40.0, "Retracement %", minval=10, maxval=90, step=5) / 100.0
+showRange   = input.bool(true, "Show range box")
+showDebug   = input.bool(false, "Show labels")
+rangeColor  = input.color(color.new(color.blue, 85), "Range color")
+
+// --- Confirmed swing points (the RANGE — BOS checks against these) ---
+var float confHigh    = na
+var int   confHighBar = na
+var float confLow     = na
+var int   confLowBar  = na
+
+// --- Provisional swing points (updating within range) ---
+var float swingHigh    = na
+var int   swingHighBar = na
+var float swingLow     = na
+var int   swingLowBar  = na
+
+// --- Last zigzag point ---
+var float zigPrice = na
+var int   zigBar   = na
+
+// --- State ---
+var bool  hasBOS   = false
+var int   dir      = 0
+var box   rangeBox = na
+
+// ==========================================
+// Phase 1: Grace period
+// ==========================================
+if bar_index <= gracePeriod
+    if na(confHigh) or high > confHigh
+        confHigh    := high
+        confHighBar := bar_index
+    if na(confLow) or low < confLow
+        confLow     := low
+        confLowBar  := bar_index
+    if bar_index == gracePeriod
+        swingHigh    := confHigh
+        swingHighBar := confHighBar
+        swingLow     := confLow
+        swingLowBar  := confLowBar
+        if confHighBar > confLowBar
+            dir := 1
+            line.new(confLowBar, confLow, confHighBar, confHigh, color=color.blue, width=2)
+            zigPrice := confHigh
+            zigBar   := confHighBar
+        else
+            dir := -1
+            line.new(confHighBar, confHigh, confLowBar, confLow, color=color.blue, width=2)
+            zigPrice := confLow
+            zigBar   := confLowBar
+
+// ==========================================
+// Phase 2: Main logic
+// ==========================================
+if bar_index > gracePeriod
+
+    if not hasBOS
+        // Update provisional points within range
+        if dir == 1
+            if low < swingLow
+                swingLow    := low
+                swingLowBar := bar_index
+        if dir == -1
+            if high > swingHigh
+                swingHigh    := high
+                swingHighBar := bar_index
+
+        // BOS up: break CONFIRMED high
+        if high > confHigh
+            if not na(zigPrice)
+                line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+            zigPrice     := swingLow
+            zigBar       := swingLowBar
+            dir          := 1
+            hasBOS       := true
+            swingHigh    := high
+            swingHighBar := bar_index
+            if showDebug
+                label.new(bar_index, high, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+        // BOS down: break CONFIRMED low
+        else if low < confLow
+            if not na(zigPrice)
+                line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+            zigPrice     := swingHigh
+            zigBar       := swingHighBar
+            dir          := -1
+            hasBOS       := true
+            swingLow     := low
+            swingLowBar  := bar_index
+            if showDebug
+                label.new(bar_index, low, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+    else
+        // hasBOS: track extreme OR check retrace (NOT both on same bar)
+        if dir == 1
+            if high > swingHigh
+                // New HH — only update, NO retrace check
+                swingHigh    := high
+                swingHighBar := bar_index
+            else
+                // NOT a new HH — check retrace
+                moveSize = swingHigh - confLow
+                if moveSize > 0
+                    retraceLevel = swingHigh - moveSize * retracePct
+                    if low < retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+                        zigPrice     := swingHigh
+                        zigBar       := swingHighBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        confLow      := low
+                        confLowBar   := bar_index
+                        swingLow     := low
+                        swingLowBar  := bar_index
+                        hasBOS       := false
+                        if showDebug
+                            label.new(bar_index, low, "HL", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if low < swingLow
+                // New LL — only update, NO retrace check
+                swingLow    := low
+                swingLowBar := bar_index
+            else
+                // NOT a new LL — check retrace
+                moveSize = confHigh - swingLow
+                if moveSize > 0
+                    retraceLevel = swingLow + moveSize * retracePct
+                    if high > retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+                        zigPrice     := swingLow
+                        zigBar       := swingLowBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        confHigh     := high
+                        confHighBar  := bar_index
+                        swingHigh    := high
+                        swingHighBar := bar_index
+                        hasBOS       := false
+                        if showDebug
+                            label.new(bar_index, high, "LH", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+// --- Range box: CONFIRMED range ---
+if showRange and not na(confHigh) and not na(confLow)
+    if not na(rangeBox)
+        box.delete(rangeBox)
+    rangeBox := box.new(bar_index, confHigh, bar_index, confLow, border_color=color.new(rangeColor, 50), bgcolor=rangeColor)

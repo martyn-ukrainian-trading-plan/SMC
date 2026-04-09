@@ -1,0 +1,78 @@
+//@version=6
+indicator("Swing BOS", overlay=true, max_lines_count=500)
+
+// State: 1 = after BOS up (waiting for BOS down), -1 = after BOS down (waiting for BOS up)
+var int state = 0
+
+var float swHigh = na
+var float swLow = na
+
+// Track absolute max/min between BOS events
+var float trackHigh = na
+var int   trackHighBar = na
+var float trackLow = na
+var int   trackLowBar = na
+
+// Zigzag
+var float lastP = na
+var int   lastPbar = na
+var int   lastPtype = 0
+var line  lastLine = na
+
+// Always track extremes
+if high > trackHigh or na(trackHigh)
+    trackHigh := high
+    trackHighBar := bar_index
+if low < trackLow or na(trackLow)
+    trackLow := low
+    trackLowBar := bar_index
+
+// Init from first 10 bars
+if state == 0 and bar_index == 10
+    swHigh := trackHigh
+    swLow := trackLow
+    // Start waiting for BOS up
+    state := -1
+    lastP := swHigh
+    lastPbar := trackHighBar
+    lastPtype := 1
+    trackHigh := high
+    trackHighBar := bar_index
+    trackLow := low
+    trackLowBar := bar_index
+
+// BOS up: close breaks above range high
+if state == -1 and not na(swHigh) and close > swHigh
+    // Swing LOW = absolute minimum since last BOS
+    if lastPtype == 1
+        lastLine := line.new(lastPbar, lastP, trackLowBar, trackLow, color=color.blue, width=2)
+    else if lastPtype == -1 and trackLow < lastP and not na(lastLine)
+        line.set_xy2(lastLine, trackLowBar, trackLow)
+    lastP := trackLow
+    lastPbar := trackLowBar
+    lastPtype := -1
+    swLow := trackLow
+    // Reset tracking
+    state := 1
+    trackHigh := high
+    trackHighBar := bar_index
+    trackLow := low
+    trackLowBar := bar_index
+
+// BOS down: close breaks below range low
+if state == 1 and not na(swLow) and close < swLow
+    // Swing HIGH = absolute maximum since last BOS
+    if lastPtype == -1
+        lastLine := line.new(lastPbar, lastP, trackHighBar, trackHigh, color=color.blue, width=2)
+    else if lastPtype == 1 and trackHigh > lastP and not na(lastLine)
+        line.set_xy2(lastLine, trackHighBar, trackHigh)
+    lastP := trackHigh
+    lastPbar := trackHighBar
+    lastPtype := 1
+    swHigh := trackHigh
+    // Reset tracking
+    state := -1
+    trackLow := low
+    trackLowBar := bar_index
+    trackHigh := high
+    trackHighBar := bar_index

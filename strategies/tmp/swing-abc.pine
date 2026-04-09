@@ -1,0 +1,71 @@
+//@version=6
+indicator("Swing ABC", overlay=true, max_lines_count=500)
+
+// --- Inputs ---
+confirmClose = input.bool(true, "Confirm by close", tooltip="Use close to confirm break, otherwise use high/low wicks")
+
+// --- State ---
+var int   dir       = 0      // 1 = up swing, -1 = down swing
+var float pointA    = na     // swing low in uptrend / swing high in downtrend
+var int   barA      = na
+var float pointB    = na     // running extreme (highest high / lowest low)
+var int   barB      = na
+var line  swingLine = na
+
+src_break_up   = confirmClose ? close : high
+src_break_down = confirmClose ? close : low
+
+// --- Init: wait for first two bars to set direction ---
+if dir == 0 and bar_index > 0
+    if close > close[1]
+        dir    := 1
+        pointA := low[1]
+        barA   := bar_index - 1
+        pointB := high
+        barB   := bar_index
+        swingLine := line.new(barA, pointA, barB, pointB, color=color.blue, width=2)
+    else if close < close[1]
+        dir    := -1
+        pointA := high[1]
+        barA   := bar_index - 1
+        pointB := low
+        barB   := bar_index
+        swingLine := line.new(barA, pointA, barB, pointB, color=color.blue, width=2)
+
+// --- Upswing: A is low, B tracks highest ---
+if dir == 1
+    // C > B — update B to new high
+    if high > pointB
+        pointB := high
+        barB   := bar_index
+        line.set_xy2(swingLine, barB, pointB)
+    // C breaks below A — swing complete, reverse
+    if src_break_down < pointA
+        // Start new down swing: A = old highest B, B = current low
+        float newA = pointB
+        int   newAbar = barB
+        dir    := -1
+        pointA := newA
+        barA   := newAbar
+        pointB := low
+        barB   := bar_index
+        swingLine := line.new(barA, pointA, barB, pointB, color=color.blue, width=2)
+
+// --- Downswing: A is high, B tracks lowest ---
+if dir == -1
+    // C < B — update B to new low
+    if low < pointB
+        pointB := low
+        barB   := bar_index
+        line.set_xy2(swingLine, barB, pointB)
+    // C breaks above A — swing complete, reverse
+    if src_break_up > pointA
+        // Start new up swing: A = old lowest B, B = current high
+        float newA = pointB
+        int   newAbar = barB
+        dir    := 1
+        pointA := newA
+        barA   := newAbar
+        pointB := high
+        barB   := bar_index
+        swingLine := line.new(barA, pointA, barB, pointB, color=color.blue, width=2)
