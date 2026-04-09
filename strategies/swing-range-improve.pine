@@ -6,6 +6,8 @@ gracePeriod = input.int(20, "Grace period (bars)", minval=5, maxval=200)
 retracePct  = input.float(20.0, "Retracement %", minval=10, maxval=90, step=5) / 100.0
 showRange   = input.bool(true, "Show range box")
 showDebug   = input.bool(false, "Show labels")
+useFractal  = input.bool(false, "Fractal filter", tooltip="Require swing point to be a fractal (N bars left/right with lower high or higher low)")
+fractalBars = input.int(2, "Fractal bars (left/right)", minval=1, maxval=10)
 rangeColor  = input.color(color.new(color.blue, 85), "Range color")
 bullColor   = input.color(color.green, "Bull color")
 bearColor   = input.color(color.red, "Bear color")
@@ -30,6 +32,33 @@ var line activLowLine  = na
 var int state = 0
 var int dir   = 0
 var box rangeBox = na
+
+// Helper: check fractal high — N bars left and right must have lower high
+isFractalHigh(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if high[barsAgo + i] >= high[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and high[barsAgo - i] >= high[barsAgo]
+            ok := false
+    ok
+
+// Helper: check fractal low — N bars left and right must have higher low
+isFractalLow(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if low[barsAgo + i] <= low[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and low[barsAgo - i] <= low[barsAgo]
+            ok := false
+    ok
+
+// Helper: fractal gate — pass if filter disabled or fractal confirmed
+isValidSwingHigh(int swBar) =>
+    not useFractal or isFractalHigh(bar_index - swBar, fractalBars)
+
+isValidSwingLow(int swBar) =>
+    not useFractal or isFractalLow(bar_index - swBar, fractalBars)
 
 // Helper: draw dot at swing point
 drawDot(int b, float price, bool isHigh, color c) =>
@@ -132,7 +161,7 @@ if bar_index > gracePeriod
                 moveSize = swingHigh - confLow
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
-                    if low < retraceLevel
+                    if low < retraceLevel and isValidSwingHigh(swingHighBar)
                         // HH confirmed
                         drawDot(swingHighBar, swingHigh, true, bullColor)
                         activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
@@ -154,7 +183,7 @@ if bar_index > gracePeriod
                 moveSize = confHigh - swingLow
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
-                    if high > retraceLevel
+                    if high > retraceLevel and isValidSwingLow(swingLowBar)
                         // LL confirmed
                         drawDot(swingLowBar, swingLow, false, bearColor)
                         activLowLine := startLevel(swingLowBar, swingLow, bullColor)
@@ -252,7 +281,7 @@ if bar_index > gracePeriod
                 moveSize = swingHigh - confLow
                 if moveSize > 0
                     retraceLevel = swingHigh - moveSize * retracePct
-                    if low < retraceLevel
+                    if low < retraceLevel and isValidSwingHigh(swingHighBar)
                         drawDot(swingHighBar, swingHigh, true, bullColor)
                         activHighLine := startLevel(swingHighBar, swingHigh, bearColor)
                         confHigh     := swingHigh
@@ -273,7 +302,7 @@ if bar_index > gracePeriod
                 moveSize = confHigh - swingLow
                 if moveSize > 0
                     retraceLevel = swingLow + moveSize * retracePct
-                    if high > retraceLevel
+                    if high > retraceLevel and isValidSwingLow(swingLowBar)
                         drawDot(swingLowBar, swingLow, false, bearColor)
                         activLowLine := startLevel(swingLowBar, swingLow, bullColor)
                         confLow      := swingLow
