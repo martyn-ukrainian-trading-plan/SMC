@@ -1,0 +1,47 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © peacepeacecreation
+
+//@version=6
+indicator("Swing ZigZag", overlay=true, max_lines_count=500)
+
+depth = input.float(0.3, "Reversal %", minval=0.05, step=0.05)
+
+var int   dir      = 1
+var float extreme  = na
+var int   extremeBar = na
+var float lastDraw = na
+var int   lastDrawBar = na
+
+if na(extreme)
+    extreme    := close
+    extremeBar := bar_index
+
+if dir == 1
+    // Tracking up
+    if high > extreme
+        extreme    := high
+        extremeBar := bar_index
+    // Reversal down
+    if extreme - low >= extreme * depth / 100
+        if not na(lastDrawBar)
+            line.new(lastDrawBar, lastDraw, extremeBar, extreme, color=color.blue, width=2)
+        lastDraw    := extreme
+        lastDrawBar := extremeBar
+        dir         := -1
+        extreme     := low
+        extremeBar  := bar_index
+
+else
+    // Tracking down
+    if low < extreme
+        extreme    := low
+        extremeBar := bar_index
+    // Reversal up
+    if high - extreme >= extreme * depth / 100
+        if not na(lastDrawBar)
+            line.new(lastDrawBar, lastDraw, extremeBar, extreme, color=color.blue, width=2)
+        lastDraw    := extreme
+        lastDrawBar := extremeBar
+        dir         := 1
+        extreme     := high
+        extremeBar  := bar_index

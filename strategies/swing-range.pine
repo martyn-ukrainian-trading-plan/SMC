@@ -1,0 +1,277 @@
+//@version=6
+indicator("Range STR", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// --- Inputs ---
+gracePeriod = input.int(20, "Grace period (bars)", minval=5, maxval=200)
+retracePct  = input.float(40.0, "Retracement %", minval=10, maxval=90, step=5) / 100.0
+showRange   = input.bool(true, "Show range box")
+showDebug   = input.bool(false, "Show labels")
+rangeColor  = input.color(color.new(color.blue, 85), "Range color")
+
+// --- Confirmed range ---
+var float confHigh    = na
+var int   confHighBar = na
+var float confLow     = na
+var int   confLowBar  = na
+
+// --- Provisional swing points ---
+var float swingHigh    = na
+var int   swingHighBar = na
+var float swingLow     = na
+var int   swingLowBar  = na
+
+// --- Last zigzag point ---
+var float zigPrice = na
+var int   zigBar   = na
+
+// --- State: 0=waiting, 1=hasBOS, 2=hasCallback, 3=hasCHoCH ---
+var int state = 0
+var int dir   = 0
+var box rangeBox = na
+
+// ==========================================
+// Phase 1: Grace period
+// ==========================================
+if bar_index <= gracePeriod
+    if na(confHigh) or high > confHigh
+        confHigh    := high
+        confHighBar := bar_index
+    if na(confLow) or low < confLow
+        confLow     := low
+        confLowBar  := bar_index
+    if bar_index == gracePeriod
+        swingHigh    := confHigh
+        swingHighBar := confHighBar
+        swingLow     := confLow
+        swingLowBar  := confLowBar
+        // Start directly in hasCallback — grace period is our first range
+        state := 2
+        if confHighBar > confLowBar
+            dir := 1
+            line.new(confLowBar, confLow, confHighBar, confHigh, color=color.blue, width=2)
+            zigPrice := confHigh
+            zigBar   := confHighBar
+        else
+            dir := -1
+            line.new(confHighBar, confHigh, confLowBar, confLow, color=color.blue, width=2)
+            zigPrice := confLow
+            zigBar   := confLowBar
+
+// ==========================================
+// Phase 2: Main logic
+// ==========================================
+if bar_index > gracePeriod
+
+    // =====================
+    // State 0: waiting for first BOS
+    // =====================
+    if state == 0
+        if dir == 1
+            if low < swingLow
+                swingLow    := low
+                swingLowBar := bar_index
+        if dir == -1
+            if high > swingHigh
+                swingHigh    := high
+                swingHighBar := bar_index
+
+        if high > confHigh
+            if not na(zigPrice)
+                line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+            zigPrice     := swingLow
+            zigBar       := swingLowBar
+            dir          := 1
+            state        := 1
+            swingHigh    := high
+            swingHighBar := bar_index
+            if showDebug
+                label.new(bar_index, high, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+        else if low < confLow
+            if not na(zigPrice)
+                line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+            zigPrice     := swingHigh
+            zigBar       := swingHighBar
+            dir          := -1
+            state        := 1
+            swingLow     := low
+            swingLowBar  := bar_index
+            if showDebug
+                label.new(bar_index, low, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 1: hasBOS — track extreme, retrace → state 2
+    // =====================
+    else if state == 1
+        if dir == 1
+            if high > swingHigh
+                swingHigh    := high
+                swingHighBar := bar_index
+            else
+                moveSize = swingHigh - confLow
+                if moveSize > 0
+                    retraceLevel = swingHigh - moveSize * retracePct
+                    if low < retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+                        zigPrice     := swingHigh
+                        zigBar       := swingHighBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        swingLow     := low
+                        swingLowBar  := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, low, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if low < swingLow
+                swingLow    := low
+                swingLowBar := bar_index
+            else
+                moveSize = confHigh - swingLow
+                if moveSize > 0
+                    retraceLevel = swingLow + moveSize * retracePct
+                    if high > retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+                        zigPrice     := swingLow
+                        zigBar       := swingLowBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        swingHigh    := high
+                        swingHighBar := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, high, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 2: hasCallback — track HL/LH, BOS or CHoCH
+    // =====================
+    else if state == 2
+        if dir == 1
+            if low < swingLow
+                swingLow    := low
+                swingLowBar := bar_index
+
+            if high > confHigh
+                // BOS → confirm HL, update confLow NOW
+                confLow      := swingLow
+                confLowBar   := swingLowBar
+                if not na(zigPrice)
+                    line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+                zigPrice     := swingLow
+                zigBar       := swingLowBar
+                state        := 1
+                swingHigh    := high
+                swingHighBar := bar_index
+                if showDebug
+                    label.new(bar_index, high, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+            else if low < confLow
+                // CHoCH → confirm LH, update confHigh NOW
+                confHigh     := swingHigh
+                confHighBar  := swingHighBar
+                if not na(zigPrice)
+                    line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+                zigPrice     := swingHigh
+                zigBar       := swingHighBar
+                dir          := -1
+                state        := 3
+                swingLow     := low
+                swingLowBar  := bar_index
+                if showDebug
+                    label.new(bar_index, low, "CHoCH↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if high > swingHigh
+                swingHigh    := high
+                swingHighBar := bar_index
+
+            if low < confLow
+                // BOS → confirm LH, update confHigh NOW
+                confHigh     := swingHigh
+                confHighBar  := swingHighBar
+                if not na(zigPrice)
+                    line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+                zigPrice     := swingHigh
+                zigBar       := swingHighBar
+                state        := 1
+                swingLow     := low
+                swingLowBar  := bar_index
+                if showDebug
+                    label.new(bar_index, low, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+            else if high > confHigh
+                // CHoCH → confirm HL, update confLow NOW
+                confLow      := swingLow
+                confLowBar   := swingLowBar
+                if not na(zigPrice)
+                    line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+                zigPrice     := swingLow
+                zigBar       := swingLowBar
+                dir          := 1
+                state        := 3
+                swingHigh    := high
+                swingHighBar := bar_index
+                if showDebug
+                    label.new(bar_index, high, "CHoCH↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 3: hasCHoCH — same as hasBOS but trend flipped
+    // =====================
+    else if state == 3
+        if dir == 1
+            if high > swingHigh
+                swingHigh    := high
+                swingHighBar := bar_index
+            else
+                moveSize = swingHigh - confLow
+                if moveSize > 0
+                    retraceLevel = swingHigh - moveSize * retracePct
+                    if low < retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingHighBar, swingHigh, color=color.blue, width=2)
+                        zigPrice     := swingHigh
+                        zigBar       := swingHighBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        swingLow     := low
+                        swingLowBar  := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, low, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if low < swingLow
+                swingLow    := low
+                swingLowBar := bar_index
+            else
+                moveSize = confHigh - swingLow
+                if moveSize > 0
+                    retraceLevel = swingLow + moveSize * retracePct
+                    if high > retraceLevel
+                        if not na(zigPrice)
+                            line.new(zigBar, zigPrice, swingLowBar, swingLow, color=color.blue, width=2)
+                        zigPrice     := swingLow
+                        zigBar       := swingLowBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        swingHigh    := high
+                        swingHighBar := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, high, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+// --- Range box ---
+if showRange and not na(confHigh) and not na(confLow)
+    if not na(rangeBox)
+        box.delete(rangeBox)
+    rangeBox := box.new(bar_index, confHigh, bar_index, confLow, border_color=color.new(rangeColor, 50), bgcolor=rangeColor)

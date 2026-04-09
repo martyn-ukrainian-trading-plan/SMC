@@ -1,0 +1,50 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © peacepeacecreation
+
+//@version=6
+indicator("Swing ZigZag", overlay=true, max_lines_count=500)
+
+swingLen = input.int(5, "Swing Length", minval=2, maxval=50)
+
+swingHigh = ta.pivothigh(high, swingLen, swingLen)
+swingLow  = ta.pivotlow(low, swingLen, swingLen)
+
+var float lastPrice = na
+var int   lastBar   = na
+var int   lastType  = 0
+var line  lastLine  = na
+
+// Strict alternation: high → low → high → low
+// If same type repeats: keep the more extreme one (higher high / lower low)
+
+if not na(swingHigh)
+    thisBar = bar_index - swingLen
+    if lastType == 1
+        // Two highs in a row — keep the higher one, update the line
+        if swingHigh >= lastPrice
+            line.set_xy2(lastLine, thisBar, swingHigh)
+            lastPrice := swingHigh
+            lastBar   := thisBar
+    else
+        // Previous was low (or first) — draw new line
+        if not na(lastPrice)
+            lastLine := line.new(lastBar, lastPrice, thisBar, swingHigh, color=color.blue, width=2)
+        lastPrice := swingHigh
+        lastBar   := thisBar
+        lastType  := 1
+
+if not na(swingLow)
+    thisBar = bar_index - swingLen
+    if lastType == -1
+        // Two lows in a row — keep the lower one, update the line
+        if swingLow <= lastPrice
+            line.set_xy2(lastLine, thisBar, swingLow)
+            lastPrice := swingLow
+            lastBar   := thisBar
+    else
+        // Previous was high (or first) — draw new line
+        if not na(lastPrice)
+            lastLine := line.new(lastBar, lastPrice, thisBar, swingLow, color=color.blue, width=2)
+        lastPrice := swingLow
+        lastBar   := thisBar
+        lastType  := -1

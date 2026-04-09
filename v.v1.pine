@@ -1,0 +1,526 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © peacepeacecreation
+
+//@version=6
+indicator("Volatility Before News", overlay=true, max_labels_count=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+grpVol  = "Volatility Settings"
+atrLen  = input.int(14, "ATR Length", minval=1, group=grpVol)
+atrAvgLen = input.int(30, "ATR Average Period (days)", minval=5, group=grpVol)
+bbLen   = input.int(20, "Bollinger Band Length", minval=5, group=grpVol)
+bbMult  = input.float(2.0, "BB Multiplier", minval=0.5, step=0.5, group=grpVol)
+hvLen   = input.int(20, "Historical Volatility Length", minval=5, group=grpVol)
+
+grpNews = "News Settings"
+showRestriction = input.bool(true, "Show Restriction (Red)", group=grpNews)
+showHelicopter  = input.bool(true, "Show Helicopter (Orange)", group=grpNews)
+showNormal      = input.bool(true, "Show Normal (Yellow)", group=grpNews)
+hoursBeforeAlert = input.int(5, "Hours before event for alert zone", minval=1, maxval=24, group=grpNews)
+
+grpDisplay = "Display"
+tablePos    = input.string("Top Right", "Table Position", options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"], group=grpDisplay)
+showBgZone  = input.bool(true, "Highlight pre-news zone on chart", group=grpDisplay)
+showTable   = input.bool(true, "Show Volatility Table", group=grpDisplay)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOLATILITY CALCULATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+atrVal      = ta.atr(atrLen)
+atrPercent  = (atrVal / close) * 100
+atrSlow     = ta.sma(ta.atr(atrLen), atrAvgLen)
+atrRatio    = atrVal / atrSlow
+
+[bbMiddle, bbUpper, bbLower] = ta.bb(close, bbLen, bbMult)
+bbWidth     = ((bbUpper - bbLower) / bbMiddle) * 100
+bbWidthAvg  = ta.sma(bbWidth, atrAvgLen)
+bbSqueeze   = bbWidth < bbWidthAvg * 0.75
+
+logReturn   = math.log(close / close[1])
+hvDaily     = ta.stdev(logReturn, hvLen)
+hvAnnual    = hvDaily * math.sqrt(365) * 100
+
+barsInHours = math.round(hoursBeforeAlert * 60 / timeframe.multiplier)
+highestN    = ta.highest(high, barsInHours > 0 ? barsInHours : 1)
+lowestN     = ta.lowest(low, barsInHours > 0 ? barsInHours : 1)
+rangePercent = ((highestN - lowestN) / close) * 100
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOLATILITY SCORING (0-100)
+// ══════════════════════════════════════════════════════════════════════════════
+
+f_percentRank(src, len) =>
+    count = 0
+    for i = 1 to len
+        if src[i] <= src
+            count += 1
+    (count / len) * 100
+
+rankLen = 200
+atrScore    = f_percentRank(atrPercent, rankLen)
+ratioScore  = f_percentRank(atrRatio, rankLen)
+bbScore     = 100 - f_percentRank(bbWidth, rankLen)
+hvScore     = f_percentRank(hvAnnual, rankLen)
+rangeScore  = f_percentRank(rangePercent, rankLen)
+
+volScore = (atrScore * 0.25 + ratioScore * 0.20 + bbScore * 0.20 + hvScore * 0.20 + rangeScore * 0.15)
+volState = volScore > 70 ? "HIGH" : volScore > 40 ? "MEDIUM" : "LOW"
+volColor = volScore > 70 ? color.red : volScore > 40 ? color.orange : color.green
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HARDCODED 2026 NEWS EVENTS (real dates from official sources)
+// Sources: Federal Reserve, BLS, BEA, ECB
+// ══════════════════════════════════════════════════════════════════════════════
+
+var array<int>    rDates = array.new_int()
+var array<string> rNames = array.new_string()
+var array<int>    hDates = array.new_int()
+var array<string> hNames = array.new_string()
+var array<int>    nDates = array.new_int()
+var array<string> nNames = array.new_string()
+
+if barstate.isfirst
+    // ──────────────────────────────────────────────────────────────────────
+    // RESTRICTION (highest impact) — Red
+    // ──────────────────────────────────────────────────────────────────────
+
+    // CPI — 8:30 ET = 12:30 UTC (Source: BLS/OMB)
+    array.push(rDates, timestamp("UTC", 2026, 1, 13, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 2, 11, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 3, 11, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 4, 10, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 5, 12, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 6, 10, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 7, 14, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 8, 12, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 9, 11, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 10, 14, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 11, 10, 12, 30))
+    array.push(rNames, "CPI")
+    array.push(rDates, timestamp("UTC", 2026, 12, 10, 12, 30))
+    array.push(rNames, "CPI")
+
+    // FOMC Rate Decision — 14:00 ET = 18:00 UTC (Source: Federal Reserve)
+    array.push(rDates, timestamp("UTC", 2026, 1, 28, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 3, 18, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 4, 29, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 6, 17, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 7, 29, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 9, 16, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 10, 28, 18, 0))
+    array.push(rNames, "FOMC")
+    array.push(rDates, timestamp("UTC", 2026, 12, 9, 18, 0))
+    array.push(rNames, "FOMC")
+
+    // NFP (Employment Situation) — 8:30 ET = 12:30 UTC (Source: BLS)
+    array.push(rDates, timestamp("UTC", 2026, 1, 9, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 2, 6, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 3, 6, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 4, 3, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 5, 8, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 6, 5, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 7, 3, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 8, 7, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 9, 4, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 10, 2, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 11, 6, 12, 30))
+    array.push(rNames, "NFP")
+    array.push(rDates, timestamp("UTC", 2026, 12, 4, 12, 30))
+    array.push(rNames, "NFP")
+
+    // GDP Advance — 8:30 ET = 12:30 UTC (Source: BEA)
+    array.push(rDates, timestamp("UTC", 2026, 2, 20, 12, 30))
+    array.push(rNames, "GDP Adv Q4'25")
+    array.push(rDates, timestamp("UTC", 2026, 4, 30, 12, 30))
+    array.push(rNames, "GDP Adv Q1'26")
+    array.push(rDates, timestamp("UTC", 2026, 7, 30, 12, 30))
+    array.push(rNames, "GDP Adv Q2'26")
+    array.push(rDates, timestamp("UTC", 2026, 10, 29, 12, 30))
+    array.push(rNames, "GDP Adv Q3'26")
+
+    // ECB Rate Decision — 13:15 UTC (Source: ECB)
+    array.push(rDates, timestamp("UTC", 2026, 3, 19, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 4, 30, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 6, 11, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 7, 23, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 9, 10, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 10, 29, 13, 15))
+    array.push(rNames, "ECB Rate")
+    array.push(rDates, timestamp("UTC", 2026, 12, 17, 13, 15))
+    array.push(rNames, "ECB Rate")
+
+    // FOMC Minutes — 14:00 ET = 18:00 UTC (3 weeks after meeting)
+    array.push(rDates, timestamp("UTC", 2026, 2, 18, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 4, 8, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 5, 20, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 7, 8, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 8, 19, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 10, 7, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 11, 18, 18, 0))
+    array.push(rNames, "FOMC Min")
+    array.push(rDates, timestamp("UTC", 2026, 12, 30, 18, 0))
+    array.push(rNames, "FOMC Min")
+
+    // ──────────────────────────────────────────────────────────────────────
+    // HELICOPTER (medium impact) — Orange
+    // ──────────────────────────────────────────────────────────────────────
+
+    // PPI — 8:30 ET = 12:30 UTC (Source: BLS/OMB)
+    array.push(hDates, timestamp("UTC", 2026, 1, 14, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 2, 12, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 3, 12, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 4, 14, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 5, 13, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 6, 11, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 7, 15, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 8, 13, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 9, 10, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 10, 15, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 11, 13, 12, 30))
+    array.push(hNames, "PPI")
+    array.push(hDates, timestamp("UTC", 2026, 12, 15, 12, 30))
+    array.push(hNames, "PPI")
+
+    // Core PCE (Personal Income & Outlays) — 8:30 ET = 12:30 UTC (Source: BEA)
+    array.push(hDates, timestamp("UTC", 2026, 1, 29, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 3, 13, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 4, 9, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 4, 30, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 5, 28, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 6, 25, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 7, 30, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 8, 26, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 9, 30, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 10, 29, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 11, 25, 12, 30))
+    array.push(hNames, "Core PCE")
+    array.push(hDates, timestamp("UTC", 2026, 12, 23, 12, 30))
+    array.push(hNames, "Core PCE")
+
+    // ISM Manufacturing PMI — 10:00 ET = 14:00 UTC (1st business day)
+    array.push(hDates, timestamp("UTC", 2026, 1, 5, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 2, 2, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 3, 2, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 4, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 5, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 6, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 7, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 8, 3, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 9, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 10, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 11, 2, 14, 0))
+    array.push(hNames, "ISM Mfg")
+    array.push(hDates, timestamp("UTC", 2026, 12, 1, 14, 0))
+    array.push(hNames, "ISM Mfg")
+
+    // ──────────────────────────────────────────────────────────────────────
+    // NORMAL (lower impact) — Yellow
+    // ──────────────────────────────────────────────────────────────────────
+
+    // ISM Services PMI — 10:00 ET = 14:00 UTC (3rd business day)
+    array.push(nDates, timestamp("UTC", 2026, 1, 7, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 2, 4, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 3, 4, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 4, 3, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 5, 5, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 6, 3, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 7, 6, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 8, 5, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 9, 3, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 10, 5, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 11, 4, 14, 0))
+    array.push(nNames, "ISM Svc")
+    array.push(nDates, timestamp("UTC", 2026, 12, 3, 14, 0))
+    array.push(nNames, "ISM Svc")
+
+    // ADP Employment — 8:15 ET = 12:15 UTC (2 days before NFP)
+    array.push(nDates, timestamp("UTC", 2026, 1, 7, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 2, 4, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 3, 4, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 4, 1, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 5, 6, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 6, 3, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 7, 1, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 8, 5, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 9, 2, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 10, 1, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 11, 4, 12, 15))
+    array.push(nNames, "ADP")
+    array.push(nDates, timestamp("UTC", 2026, 12, 2, 12, 15))
+    array.push(nNames, "ADP")
+
+    // GDP Second/Third Estimates — 8:30 ET = 12:30 UTC (Source: BEA)
+    array.push(nDates, timestamp("UTC", 2026, 4, 9, 12, 30))
+    array.push(nNames, "GDP 3rd Q4'25")
+    array.push(nDates, timestamp("UTC", 2026, 5, 28, 12, 30))
+    array.push(nNames, "GDP 2nd Q1'26")
+    array.push(nDates, timestamp("UTC", 2026, 6, 25, 12, 30))
+    array.push(nNames, "GDP 3rd Q1'26")
+    array.push(nDates, timestamp("UTC", 2026, 8, 26, 12, 30))
+    array.push(nNames, "GDP 2nd Q2'26")
+    array.push(nDates, timestamp("UTC", 2026, 9, 30, 12, 30))
+    array.push(nNames, "GDP 3rd Q2'26")
+    array.push(nDates, timestamp("UTC", 2026, 11, 25, 12, 30))
+    array.push(nNames, "GDP 2nd Q3'26")
+    array.push(nDates, timestamp("UTC", 2026, 12, 23, 12, 30))
+    array.push(nNames, "GDP 3rd Q3'26")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EVENT DETECTION ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
+
+msBeforeAlert = hoursBeforeAlert * 3600 * 1000
+
+f_findEvent(array<int> dates, array<string> names) =>
+    string foundName = ""
+    bool isEvent = false
+    bool isPreEvent = false
+    for i = 0 to array.size(dates) - 1
+        int t = array.get(dates, i)
+        int diff = t - time
+        if diff >= 0 and diff < msBeforeAlert
+            isPreEvent := true
+            foundName := array.get(names, i)
+            break
+        if diff >= -timeframe.multiplier * 60 * 1000 and diff < timeframe.multiplier * 60 * 1000
+            isEvent := true
+            foundName := array.get(names, i)
+            break
+    [isEvent, isPreEvent, foundName]
+
+[rEvent, rPre, rName] = f_findEvent(rDates, rNames)
+[hEvent, hPre, hName] = f_findEvent(hDates, hNames)
+[nEvent, nPre, nName] = f_findEvent(nDates, nNames)
+
+isRestriction = showRestriction and rEvent
+isHelicopter  = showHelicopter and hEvent
+isNormal      = showNormal and nEvent
+eventDetected = isRestriction or isHelicopter or isNormal
+
+preRestriction = showRestriction and rPre
+preHelicopter  = showHelicopter and hPre
+preNormal      = showNormal and nPre
+isPreNews = preRestriction or preHelicopter or preNormal
+
+currentEvent = rEvent ? rName : hEvent ? hName : nEvent ? nName : ""
+preEventName = rPre ? rName : hPre ? hName : nPre ? nName : ""
+preNewsCategory = preRestriction ? "Restriction" : preHelicopter ? "Helicopter" : preNormal ? "Normal" : ""
+
+preNewsColor = preRestriction ? color.new(color.red, 85) : preHelicopter ? color.new(color.orange, 85) : preNormal ? color.new(color.yellow, 88) : na
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VISUAL: CHART
+// ══════════════════════════════════════════════════════════════════════════════
+
+bgcolor(showBgZone and isPreNews ? preNewsColor : na, title="Pre-News Zone")
+
+plotshape(isRestriction, title="Restriction", style=shape.diamond, location=location.abovebar, color=color.red, size=size.normal, text="R")
+plotshape(isHelicopter, title="Helicopter", style=shape.diamond, location=location.abovebar, color=color.orange, size=size.normal, text="H")
+plotshape(isNormal, title="Normal", style=shape.diamond, location=location.abovebar, color=color.yellow, size=size.normal, text="N")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOLATILITY TABLE
+// ══════════════════════════════════════════════════════════════════════════════
+
+var tblPos = tablePos == "Top Left" ? position.top_left : tablePos == "Top Right" ? position.top_right : tablePos == "Bottom Left" ? position.bottom_left : position.bottom_right
+
+var table volTable = table.new(tblPos, 3, 12, bgcolor=color.new(color.black, 20), border_width=1, border_color=color.gray, frame_width=2, frame_color=color.gray)
+
+f_scoreColor(float score) =>
+    score > 70 ? color.red : score > 40 ? color.orange : color.green
+
+if showTable and barstate.islast
+    table.cell(volTable, 0, 0, "VOLATILITY DASHBOARD", text_color=color.white, text_size=size.normal, bgcolor=color.new(#1a1a2e, 0), text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 0, 2, 0)
+
+    table.cell(volTable, 0, 1, "Overall Score", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    table.cell(volTable, 1, 1, str.tostring(volScore, "#.0") + " / 100", text_color=volColor, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 1, volState, text_color=volColor, text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 2, "------------------------", text_color=#909090, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 2, 2, 2)
+
+    table.cell(volTable, 0, 3, "ATR(" + str.tostring(atrLen) + ")", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    table.cell(volTable, 1, 3, str.tostring(atrVal, "#.1") + " (" + str.tostring(atrPercent, "#.##") + "%)", text_color=color.white, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 3, str.tostring(atrScore, "#.0"), text_color=f_scoreColor(atrScore), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 4, "ATR Ratio", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    atrRatioColor = atrRatio > 1.2 ? color.red : atrRatio < 0.8 ? color.green : color.white
+    table.cell(volTable, 1, 4, str.tostring(atrRatio, "#.##") + "x", text_color=atrRatioColor, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 4, str.tostring(ratioScore, "#.0"), text_color=f_scoreColor(ratioScore), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 5, "BB Width", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    sqzText = bbSqueeze ? " SQUEEZE" : ""
+    table.cell(volTable, 1, 5, str.tostring(bbWidth, "#.##") + "%" + sqzText, text_color=bbSqueeze ? color.fuchsia : color.white, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 5, str.tostring(bbScore, "#.0"), text_color=f_scoreColor(bbScore), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 6, "Hist. Vol", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    table.cell(volTable, 1, 6, str.tostring(hvAnnual, "#.#") + "% ann.", text_color=color.white, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 6, str.tostring(hvScore, "#.0"), text_color=f_scoreColor(hvScore), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 7, "Range " + str.tostring(hoursBeforeAlert) + "h", text_color=#b0b0b0, text_size=size.small, text_halign=text.align_left)
+    table.cell(volTable, 1, 7, str.tostring(rangePercent, "#.##") + "%", text_color=color.white, text_size=size.small, text_halign=text.align_right)
+    table.cell(volTable, 2, 7, str.tostring(rangeScore, "#.0"), text_color=f_scoreColor(rangeScore), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(volTable, 0, 8, "------------------------", text_color=#909090, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 8, 2, 8)
+
+    newsText = ""
+    newsColor = color.gray
+    if isPreNews
+        newsText := "PRE-NEWS: " + preEventName + " (" + preNewsCategory + ")"
+        newsColor := preRestriction ? color.red : preHelicopter ? color.orange : color.yellow
+    else if eventDetected
+        newsText := "EVENT NOW: " + currentEvent
+        newsColor := color.fuchsia
+    else
+        newsText := "No active event"
+        newsColor := #909090
+    table.cell(volTable, 0, 9, newsText, text_color=newsColor, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 9, 2, 9)
+
+    rec = ""
+    recColor = color.gray
+    if isPreNews or eventDetected
+        cat = isPreNews ? preNewsCategory : (isRestriction ? "Restriction" : "Other")
+        if volScore > 60
+            rec := "High vol - reduce size / widen SL"
+            recColor := color.red
+        else if volScore < 30 and cat == "Restriction"
+            rec := "Low vol + Restriction = breakout potential"
+            recColor := color.fuchsia
+        else if volScore < 30
+            rec := "Low vol - squeeze possible on release"
+            recColor := color.orange
+        else
+            rec := "Normal vol - standard risk mgmt"
+            recColor := color.white
+    else
+        rec := ""
+    table.cell(volTable, 0, 10, rec, text_color=recColor, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 10, 2, 10)
+
+    // Next event countdown
+    nextName = ""
+    nextMs = 999999999999
+    for i = 0 to array.size(rDates) - 1
+        int d = array.get(rDates, i) - time
+        if d > 0 and d < nextMs
+            nextMs := d
+            nextName := array.get(rNames, i) + " [R]"
+    for i = 0 to array.size(hDates) - 1
+        int d = array.get(hDates, i) - time
+        if d > 0 and d < nextMs
+            nextMs := d
+            nextName := array.get(hNames, i) + " [H]"
+    for i = 0 to array.size(nDates) - 1
+        int d = array.get(nDates, i) - time
+        if d > 0 and d < nextMs
+            nextMs := d
+            nextName := array.get(nNames, i) + " [N]"
+    hoursLeft = nextMs / 3600000.0
+    daysLeft = hoursLeft / 24.0
+    countdownText = nextName != "" ? "Next: " + nextName + " in " + (daysLeft > 1 ? str.tostring(daysLeft, "#.0") + "d" : str.tostring(hoursLeft, "#.0") + "h") : ""
+    table.cell(volTable, 0, 11, countdownText, text_color=color.aqua, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(volTable, 0, 11, 2, 11)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+alertcondition(isPreNews and not isPreNews[1], title="Pre-News Zone Started", message="Pre-news zone started on {{ticker}}")
+alertcondition(isPreNews and preRestriction and volScore < 30, title="Low Vol + Restriction", message="Low vol squeeze before Restriction event on {{ticker}}")
+alertcondition(isPreNews and volScore > 70, title="High Vol Pre-News", message="High volatility before news on {{ticker}}")
+alertcondition(isPreNews and bbSqueeze, title="BB Squeeze Pre-News", message="BB squeeze before news on {{ticker}}")
+alertcondition(eventDetected and not eventDetected[1], title="News Event Now", message="News event detected on {{ticker}}")
