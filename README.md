@@ -109,6 +109,41 @@ hasBOS (той же напрямок)  hasCHoCH (зміна напрямку)
 
 ---
 
+### Range STR v3 IMBA v3 — Розширена перевірка зломів
+**Файл:** [`strategies/swing-range-imba-v3.pine`](strategies/swing-range-imba-v3.pine)
+
+Все з IMBA v1/v2 + 3 режими перевірки зломів з порівнянням тіла і тіні свінг-свічки. Окремий TF для підтвердження тілом.
+
+**Режими зламу (Break mode):**
+
+| Режим | BOS up зараховується коли | Строгість |
+|-------|--------------------------|-----------|
+| **Wick (any)** | `high > swing high` | Мінімальна — тінь пробила |
+| **Close + Wick** | `close > swing close` І `high > swing high` | Середня — тіло > тіла, тінь > тіні |
+| **Body above wick** | `close > swing high` | Максимальна — тіло вище тіні |
+
+**Приклад (BOS up, confHigh свічка: high=100, close=98):**
+```
+Свічка A: high=101, close=97
+  Wick:           ✅ (101 > 100)
+  Close + Wick:   ❌ (close 97 < 98)
+  Body above wick:❌ (close 97 < 100)
+
+Свічка B: high=102, close=99
+  Wick:           ✅ (102 > 100)
+  Close + Wick:   ✅ (close 99 > 98 AND high 102 > 100)
+  Body above wick:❌ (close 99 < 100)
+
+Свічка C: high=105, close=101
+  Wick:           ✅ (105 > 100)
+  Close + Wick:   ✅ (close 101 > 98 AND high 105 > 100)
+  Body above wick:✅ (close 101 > 100)
+```
+
+**Body confirmation TF** — окремий таймфрейм для перевірки тілом. Наприклад: свінг на 15m, підтвердження зламу тілом на 4h.
+
+---
+
 ### Volatility News Stats — Волатильність та новини
 **Файл:** [`volatility-news-stats.pine`](volatility-news-stats.pine)
 
