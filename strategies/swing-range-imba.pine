@@ -1,0 +1,373 @@
+//@version=6
+indicator("Range STR v3 IMBA", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// ═══════════════════════════════════════════
+// Inputs: Core
+// ═══════════════════════════════════════════
+gracePeriod = input.int(20, "Grace period (bars)", minval=5, maxval=200, group="Core")
+retracePct  = input.float(20.0, "Retracement %", minval=10, maxval=90, step=5, group="Core") / 100.0
+showRange   = input.bool(true, "Show range box", group="Core")
+showDebug   = input.bool(false, "Show labels", group="Core")
+
+// ═══════════════════════════════════════════
+// Inputs: Multi-Timeframe
+// ═══════════════════════════════════════════
+tf          = input.timeframe("", "Timeframe", group="Multi-Timeframe", tooltip="Leave empty = chart TF. Higher TF only. Signals come on HTF bar close — expect delay. May repaint on live bars.")
+waitClose   = input.bool(true, "Wait for HTF bar close", group="Multi-Timeframe", tooltip="On = no repainting (recommended). Off = faster signals but will repaint on live bars.")
+
+// ═══════════════════════════════════════════
+// Inputs: Fractal filter
+// ═══════════════════════════════════════════
+useFractal  = input.bool(false, "Fractal filter", group="Fractal", tooltip="Require swing point to be a fractal (N bars left/right with lower high or higher low)")
+fractalBars = input.int(2, "Fractal bars (left/right)", minval=1, maxval=10, group="Fractal")
+
+// ═══════════════════════════════════════════
+// Inputs: Lines
+// ═══════════════════════════════════════════
+lineStyleInput = input.string("Dashed", "Line style", options=["Solid", "Dashed", "Dotted"], group="Lines")
+lineWidth      = input.int(1, "Line width", minval=1, maxval=4, group="Lines")
+highLineColor  = input.color(color.red, "Resistance line color", group="Lines")
+lowLineColor   = input.color(color.green, "Support line color", group="Lines")
+showDots       = input.bool(true, "Show swing dots", group="Lines")
+
+// ═══════════════════════════════════════════
+// Inputs: Colors
+// ═══════════════════════════════════════════
+rangeColor  = input.color(color.new(color.blue, 85), "Range color", group="Colors")
+bullColor   = input.color(color.green, "Bull color", group="Colors")
+bearColor   = input.color(color.red, "Bear color", group="Colors")
+
+// ═══════════════════════════════════════════
+// Resolve line style
+// ═══════════════════════════════════════════
+lineStyle = switch lineStyleInput
+    "Solid"  => line.style_solid
+    "Dashed" => line.style_dashed
+    "Dotted" => line.style_dotted
+
+// ═══════════════════════════════════════════
+// Multi-Timeframe data
+// ═══════════════════════════════════════════
+useHTF = tf != ""
+lookahead = waitClose ? barmerge.lookahead_off : barmerge.lookahead_on
+gaps = useHTF ? barmerge.gaps_off : barmerge.gaps_off
+
+srcHigh = useHTF ? request.security(syminfo.tickerid, tf, high, lookahead=lookahead, gaps=gaps) : high
+srcLow  = useHTF ? request.security(syminfo.tickerid, tf, low,  lookahead=lookahead, gaps=gaps) : low
+
+// Detect new HTF bar to avoid processing same data multiple times
+htfBarTime  = useHTF ? request.security(syminfo.tickerid, tf, time, lookahead=lookahead, gaps=gaps) : time
+isNewBar    = useHTF ? ta.change(htfBarTime) != 0 : true
+
+// ═══════════════════════════════════════════
+// State variables
+// ═══════════════════════════════════════════
+var float confHigh    = na
+var int   confHighBar = na
+var float confLow     = na
+var int   confLowBar  = na
+
+var float swingHigh    = na
+var int   swingHighBar = na
+var float swingLow     = na
+var int   swingLowBar  = na
+
+var line activHighLine = na
+var line activLowLine  = na
+
+// State: 0=waiting, 1=hasBOS, 2=hasCallback, 3=hasCHoCH
+var int state = 0
+var int dir   = 0
+var box rangeBox = na
+
+// ═══════════════════════════════════════════
+// Helpers: Fractal
+// ═══════════════════════════════════════════
+isFractalHigh(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if srcHigh[barsAgo + i] >= srcHigh[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and srcHigh[barsAgo - i] >= srcHigh[barsAgo]
+            ok := false
+    ok
+
+isFractalLow(int barsAgo, int n) =>
+    ok = true
+    for i = 1 to n
+        if srcLow[barsAgo + i] <= srcLow[barsAgo]
+            ok := false
+        if barsAgo - i >= 0 and srcLow[barsAgo - i] <= srcLow[barsAgo]
+            ok := false
+    ok
+
+isValidSwingHigh(int swBar) =>
+    not useFractal or isFractalHigh(bar_index - swBar, fractalBars)
+
+isValidSwingLow(int swBar) =>
+    not useFractal or isFractalLow(bar_index - swBar, fractalBars)
+
+// ═══════════════════════════════════════════
+// Helpers: Drawing
+// ═══════════════════════════════════════════
+drawDot(int b, float price, bool isHigh, color c) =>
+    if showDots
+        label.new(b, price, "",
+             style=label.style_circle,
+             color=c, size=size.auto)
+
+startLevel(int fromBar, float price, bool isHigh) =>
+    c = isHigh ? highLineColor : lowLineColor
+    line.new(fromBar, price, bar_index, price, color=c, width=lineWidth, style=lineStyle)
+
+// ═══════════════════════════════════════════
+// Phase 1: Grace period
+// ═══════════════════════════════════════════
+if bar_index <= gracePeriod
+    if na(confHigh) or srcHigh > confHigh
+        confHigh    := srcHigh
+        confHighBar := bar_index
+    if na(confLow) or srcLow < confLow
+        confLow     := srcLow
+        confLowBar  := bar_index
+    if bar_index == gracePeriod
+        swingHigh    := confHigh
+        swingHighBar := confHighBar
+        swingLow     := confLow
+        swingLowBar  := confLowBar
+        state := 2
+        if confHighBar > confLowBar
+            dir := 1
+            drawDot(confLowBar, confLow, false, bullColor)
+            drawDot(confHighBar, confHigh, true, bullColor)
+            activHighLine := startLevel(confHighBar, confHigh, true)
+            activLowLine  := startLevel(confLowBar, confLow, false)
+        else
+            dir := -1
+            drawDot(confHighBar, confHigh, true, bearColor)
+            drawDot(confLowBar, confLow, false, bearColor)
+            activHighLine := startLevel(confHighBar, confHigh, true)
+            activLowLine  := startLevel(confLowBar, confLow, false)
+
+// ═══════════════════════════════════════════
+// Extend active lines to current bar
+// ═══════════════════════════════════════════
+if not na(activHighLine)
+    line.set_x2(activHighLine, bar_index)
+if not na(activLowLine)
+    line.set_x2(activLowLine, bar_index)
+
+// ═══════════════════════════════════════════
+// Phase 2: Main logic (only process on new bar when using HTF)
+// ═══════════════════════════════════════════
+if bar_index > gracePeriod and isNewBar
+
+    // =====================
+    // State 0: waiting for first BOS
+    // =====================
+    if state == 0
+        if dir == 1
+            if srcLow < swingLow
+                swingLow    := srcLow
+                swingLowBar := bar_index
+        if dir == -1
+            if srcHigh > swingHigh
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+
+        if srcHigh > confHigh
+            if not na(activHighLine)
+                line.set_x2(activHighLine, bar_index)
+            drawDot(swingLowBar, swingLow, false, bullColor)
+            activLowLine := startLevel(swingLowBar, swingLow, false)
+            dir          := 1
+            state        := 1
+            swingHigh    := srcHigh
+            swingHighBar := bar_index
+            if showDebug
+                label.new(bar_index, srcHigh, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+        else if srcLow < confLow
+            if not na(activLowLine)
+                line.set_x2(activLowLine, bar_index)
+            drawDot(swingHighBar, swingHigh, true, bearColor)
+            activHighLine := startLevel(swingHighBar, swingHigh, true)
+            dir          := -1
+            state        := 1
+            swingLow     := srcLow
+            swingLowBar  := bar_index
+            if showDebug
+                label.new(bar_index, srcLow, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 1: hasBOS — track extreme, retrace → state 2
+    // =====================
+    else if state == 1
+        if dir == 1
+            if srcHigh > swingHigh
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+            else
+                moveSize = swingHigh - confLow
+                if moveSize > 0
+                    retraceLevel = swingHigh - moveSize * retracePct
+                    if srcLow < retraceLevel and isValidSwingHigh(swingHighBar)
+                        // HH confirmed
+                        drawDot(swingHighBar, swingHigh, true, bullColor)
+                        activHighLine := startLevel(swingHighBar, swingHigh, true)
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        swingLow     := srcLow
+                        swingLowBar  := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, srcLow, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if srcLow < swingLow
+                swingLow    := srcLow
+                swingLowBar := bar_index
+            else
+                moveSize = confHigh - swingLow
+                if moveSize > 0
+                    retraceLevel = swingLow + moveSize * retracePct
+                    if srcHigh > retraceLevel and isValidSwingLow(swingLowBar)
+                        // LL confirmed
+                        drawDot(swingLowBar, swingLow, false, bearColor)
+                        activLowLine := startLevel(swingLowBar, swingLow, false)
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        swingHigh    := srcHigh
+                        swingHighBar := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, srcHigh, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 2: hasCallback — track HL/LH, BOS or CHoCH
+    // =====================
+    else if state == 2
+        if dir == 1
+            if srcLow < swingLow
+                swingLow    := srcLow
+                swingLowBar := bar_index
+
+            if srcHigh > confHigh
+                // BOS up
+                if not na(activHighLine)
+                    line.set_x2(activHighLine, bar_index)
+                confLow      := swingLow
+                confLowBar   := swingLowBar
+                drawDot(swingLowBar, swingLow, false, bullColor)
+                activLowLine := startLevel(swingLowBar, swingLow, false)
+                state        := 1
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+                if showDebug
+                    label.new(bar_index, srcHigh, "BOS↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+            else if srcLow < confLow
+                // CHoCH down
+                if not na(activLowLine)
+                    line.set_x2(activLowLine, bar_index)
+                confHigh     := swingHigh
+                confHighBar  := swingHighBar
+                drawDot(swingHighBar, swingHigh, true, bearColor)
+                activHighLine := startLevel(swingHighBar, swingHigh, true)
+                dir          := -1
+                state        := 3
+                swingLow     := srcLow
+                swingLowBar  := bar_index
+                if showDebug
+                    label.new(bar_index, srcLow, "CHoCH↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if srcHigh > swingHigh
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+
+            if srcLow < confLow
+                // BOS down
+                if not na(activLowLine)
+                    line.set_x2(activLowLine, bar_index)
+                confHigh     := swingHigh
+                confHighBar  := swingHighBar
+                drawDot(swingHighBar, swingHigh, true, bearColor)
+                activHighLine := startLevel(swingHighBar, swingHigh, true)
+                state        := 1
+                swingLow     := srcLow
+                swingLowBar  := bar_index
+                if showDebug
+                    label.new(bar_index, srcLow, "BOS↓", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+
+            else if srcHigh > confHigh
+                // CHoCH up
+                if not na(activHighLine)
+                    line.set_x2(activHighLine, bar_index)
+                confLow      := swingLow
+                confLowBar   := swingLowBar
+                drawDot(swingLowBar, swingLow, false, bullColor)
+                activLowLine := startLevel(swingLowBar, swingLow, false)
+                dir          := 1
+                state        := 3
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+                if showDebug
+                    label.new(bar_index, srcHigh, "CHoCH↑", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+    // =====================
+    // State 3: hasCHoCH — same as hasBOS but trend flipped
+    // =====================
+    else if state == 3
+        if dir == 1
+            if srcHigh > swingHigh
+                swingHigh    := srcHigh
+                swingHighBar := bar_index
+            else
+                moveSize = swingHigh - confLow
+                if moveSize > 0
+                    retraceLevel = swingHigh - moveSize * retracePct
+                    if srcLow < retraceLevel and isValidSwingHigh(swingHighBar)
+                        drawDot(swingHighBar, swingHigh, true, bullColor)
+                        activHighLine := startLevel(swingHighBar, swingHigh, true)
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        swingLow     := srcLow
+                        swingLowBar  := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, srcLow, "CB", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+        if dir == -1
+            if srcLow < swingLow
+                swingLow    := srcLow
+                swingLowBar := bar_index
+            else
+                moveSize = confHigh - swingLow
+                if moveSize > 0
+                    retraceLevel = swingLow + moveSize * retracePct
+                    if srcHigh > retraceLevel and isValidSwingLow(swingLowBar)
+                        drawDot(swingLowBar, swingLow, false, bearColor)
+                        activLowLine := startLevel(swingLowBar, swingLow, false)
+                        confLow      := swingLow
+                        confLowBar   := swingLowBar
+                        confHigh     := swingHigh
+                        confHighBar  := swingHighBar
+                        swingHigh    := srcHigh
+                        swingHighBar := bar_index
+                        state        := 2
+                        if showDebug
+                            label.new(bar_index, srcHigh, "CB", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+// ═══════════════════════════════════════════
+// Range box
+// ═══════════════════════════════════════════
+if showRange and not na(confHigh) and not na(confLow)
+    if not na(rangeBox)
+        box.delete(rangeBox)
+    rangeBox := box.new(bar_index, confHigh, bar_index, confLow, border_color=color.new(rangeColor, 50), bgcolor=rangeColor)

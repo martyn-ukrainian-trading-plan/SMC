@@ -67,6 +67,30 @@ hasBOS (той же напрямок)  hasCHoCH (зміна напрямку)
 
 ---
 
+### Range STR v3 IMBA — Повна кастомізація
+**Файл:** [`strategies/swing-range-imba.pine`](strategies/swing-range-imba.pine)
+
+Найповніша версія Range STR з multi-timeframe підтримкою та повною кастомізацією ліній. Та ж 3-станова логіка + фрактальний фільтр з v2.
+
+**Нові можливості:**
+
+| Група | Параметр | Опис |
+|-------|----------|------|
+| **Multi-Timeframe** | Timeframe | Свінг з вищого TF (порожнє = поточний графік) |
+| | Wait for HTF bar close | Захист від repainting (рекомендовано ON) |
+| **Lines** | Line style | Solid / Dashed / Dotted |
+| | Line width | 1–4 px |
+| | Resistance line color | Колір лінії опору (swing high) |
+| | Support line color | Колір лінії підтримки (swing low) |
+| | Show swing dots | Вмикання/вимкнення точок |
+
+**MTF підводні камені:**
+- Працює тільки з **вищим** TF (наприклад, графік 1h → свінг з 4h)
+- Сигнали приходять із затримкою — тільки коли HTF бар закриється
+- На живих барах може репейнтити якщо `Wait for HTF bar close = OFF`
+
+---
+
 ### Volatility News Stats — Волатильність та новини
 **Файл:** [`volatility-news-stats.pine`](volatility-news-stats.pine)
 
