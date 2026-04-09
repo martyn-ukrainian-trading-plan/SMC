@@ -1,84 +1,86 @@
 # SMC — Smart Money Concepts
 
-Pine Script indicators for TradingView based on Smart Money Concepts (SMC) methodology.
+Pine Script індикатори для TradingView на основі методології Smart Money Concepts (SMC).
+
+[English version](README.eng.md)
 
 ---
 
-## Active Indicators
+## Активні індикатори
 
-### Range STR — Swing Structure Detection
-**File:** [`strategies/swing-range.pine`](strategies/swing-range.pine)
+### Range STR — Визначення свінгової структури
+**Файл:** [`strategies/swing-range.pine`](strategies/swing-range.pine)
 
-3-state machine for detecting swing structure: BOS (Break of Structure), Callback (retracement), and CHoCH (Change of Character). Identifies external structure breaks while filtering out internal (noise) moves.
+Автомат з 3 станами для визначення свінгової структури: BOS (злам структури), Callback (відкат) та CHoCH (зміна характеру). Визначає зовнішні зломи структури, фільтруючи внутрішні (шумові) рухи.
 
-**How it works:**
+**Як працює:**
 ```
-Grace Period → initial range (confHigh / confLow)
+Grace Period → початковий діапазон (confHigh / confLow)
      ↓
-hasCallback → waiting for BOS or CHoCH
+hasCallback → чекаємо BOS або CHoCH
      ↓                          ↓
-hasBOS (same dir)         hasCHoCH (dir flip)
+hasBOS (той же напрямок)  hasCHoCH (зміна напрямку)
      ↓                          ↓
-track HH/LL              track HH/LL (new dir)
+трекаємо HH/LL           трекаємо HH/LL (новий напрямок)
      ↓                          ↓
-40% retrace → hasCallback ←────┘
+40% відкат → hasCallback ←─────┘
 ```
 
-| State | Description |
-|-------|-------------|
-| **hasBOS** | Structure broken in trend direction, tracking new extreme (HH or LL) |
-| **hasCallback** | Retracement confirmed, tracking HL/LH, waiting for next break |
-| **hasCHoCH** | Change of character — trend reversed, tracking extreme in new direction |
+| Стан | Опис |
+|------|------|
+| **hasBOS** | Структуру зламано в напрямку тренду, трекаємо новий екстремум (HH або LL) |
+| **hasCallback** | Відкат підтверджено, трекаємо HL/LH, чекаємо наступний злам |
+| **hasCHoCH** | Зміна характеру — тренд розвернувся, трекаємо екстремум у новому напрямку |
 
-**Inputs:**
+**Налаштування:**
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| Grace period | 20 bars | Initial range detection period |
-| Retracement % | 40% | Callback confirmation threshold |
-| Show range box | true | Display confirmed range on chart |
-| Show labels | false | Debug labels (BOS/CB/CHoCH) |
-
----
-
-### Volatility News Stats
-**File:** [`volatility-news-stats.pine`](volatility-news-stats.pine)
-
-Volatility analysis indicator combining ATR, Bollinger Bands width, and Historical Volatility (HV). Shows how volatility behaves around news events — key insight: vol drops ~12h before major news, then spikes. Works across EUR, BTC, Gold.
+| Параметр | За замовчуванням | Опис |
+|----------|-----------------|------|
+| Grace period | 20 барів | Період визначення початкового діапазону |
+| Retracement % | 40% | Поріг підтвердження відкату |
+| Show range box | true | Показувати підтверджений діапазон на графіку |
+| Show labels | false | Дебаг мітки (BOS/CB/CHoCH) |
 
 ---
 
-### Time of Week
-**File:** [`time-of-weak.pine`](time-of-weak.pine)
+### Volatility News Stats — Волатильність та новини
+**Файл:** [`volatility-news-stats.pine`](volatility-news-stats.pine)
 
-Visual day-of-week overlay. Marks each trading day (пн/вт/ср/чт/пт/сб/вс) with color labels on the chart. Helps identify weekly patterns — e.g. Monday opens (green) vs Friday closes (red).
+Індикатор аналізу волатильності що поєднує ATR, ширину Bollinger Bands та історичну волатильність (HV). Показує як волатильність поводиться навколо новинних подій — ключовий інсайт: волатильність падає ~12 годин до важливих новин, потім стрибає. Працює на EUR, BTC, Gold.
 
 ---
 
-## Archive (tmp/)
+### Time of Week — Час тижня
+**Файл:** [`time-of-weak.pine`](time-of-weak.pine)
 
-> Old versions and experimental indicators. **Not actively used.** Kept for reference.
+Візуальний оверлей днів тижня. Позначає кожен торговий день (пн/вт/ср/чт/пт/сб/вс) кольоровими мітками на графіку. Допомагає визначити тижневі патерни — наприклад відкриття понеділка (зелений) vs закриття п'ятниці (червоний).
+
+---
+
+## Архів (tmp/)
+
+> Старі версії та експериментальні індикатори. **Наразі не використовуються.** Зберігаються для довідки.
 
 ### [`strategies/tmp/`](strategies/tmp/)
-| File | Description |
-|------|-------------|
-| `swing-range2.pine` | Range STR backup — simpler 2-state version (hasBOS / not hasBOS) |
-| `swing-abc.pine` | ABC swing logic — basic A→B→C point tracking |
-| `swing-bos.pine` | BOS zigzag — break of structure detection without callback |
-| `swing-detection.pine` | Basic pivot zigzag using `ta.pivothigh` / `ta.pivotlow` |
+| Файл | Опис |
+|------|------|
+| `swing-range2.pine` | Бекап Range STR — простіша версія з 2 станами (hasBOS / not hasBOS) |
+| `swing-abc.pine` | ABC свінг логіка — базове відстеження точок A→B→C |
+| `swing-bos.pine` | BOS zigzag — визначення зламу структури без callback |
+| `swing-detection.pine` | Базовий pivot zigzag через `ta.pivothigh` / `ta.pivotlow` |
 
 ### [`tmp/`](tmp/)
-| File | Description |
-|------|-------------|
-| `v.v1.pine` | Volatility indicator v1 |
-| `v-stats.v1.pine` | Volatility stats v1 |
-| `volatility-news.pine` | News-based volatility overlay (earlier version) |
+| Файл | Опис |
+|------|------|
+| `v.v1.pine` | Індикатор волатильності v1 |
+| `v-stats.v1.pine` | Статистика волатильності v1 |
+| `volatility-news.pine` | Оверлей волатильності на новинах (рання версія) |
 
 ---
 
-## Setup
+## Встановлення
 
-1. Open TradingView → Pine Editor
-2. Paste code from any `.pine` file
-3. Add to chart
-4. Recommended: **BTCUSDT Bybit**, test on multiple timeframes (1h, 4h, 1D)
+1. Відкрити TradingView → Pine Editor
+2. Вставити код з будь-якого `.pine` файлу
+3. Додати на графік
+4. Рекомендовано: **BTCUSDT Bybit**, тестувати на різних таймфреймах (1h, 4h, 1D)
