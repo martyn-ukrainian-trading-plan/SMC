@@ -113,10 +113,12 @@ isFractalLow(int barsAgo, int n) =>
     ok
 
 isValidSwingHigh(int swBar) =>
-    not useFractal or isFractalHigh(bar_index - swBar, fractalBars)
+    barsAgo = bar_index - swBar
+    not useFractal or barsAgo + fractalBars > 4999 or isFractalHigh(barsAgo, fractalBars)
 
 isValidSwingLow(int swBar) =>
-    not useFractal or isFractalLow(bar_index - swBar, fractalBars)
+    barsAgo = bar_index - swBar
+    not useFractal or barsAgo + fractalBars > 4999 or isFractalLow(barsAgo, fractalBars)
 
 // ═══════════════════════════════════════════
 // Helpers: Drawing
